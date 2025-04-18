@@ -1,0 +1,14 @@
+[remap]
+
+importer="glsl"
+type="RDShaderFile"
+uid="uid://cvq3rqupuxv73"
+path="res://.godot/imported/primitives.glsl-12699aafb33a436f8389e975109d3e47.res"
+
+[deps]
+
+source_file="res://addons/voxel_playground/src/shaders/primitives.glsl"
+dest_files=["res://.godot/imported/primitives.glsl-12699aafb33a436f8389e975109d3e47.res"]
+
+[params]
+

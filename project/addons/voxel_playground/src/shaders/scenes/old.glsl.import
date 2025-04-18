@@ -1,0 +1,14 @@
+[remap]
+
+importer="glsl"
+type="RDShaderFile"
+uid="uid://bo3yxdxw01sbi"
+path="res://.godot/imported/old.glsl-cadd194b3aecaa117cdd3a1aa7aec407.res"
+
+[deps]
+
+source_file="res://addons/voxel_playground/src/shaders/scenes/old.glsl"
+dest_files=["res://.godot/imported/old.glsl-cadd194b3aecaa117cdd3a1aa7aec407.res"]
+
+[params]
+

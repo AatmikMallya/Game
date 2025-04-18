@@ -1,0 +1,14 @@
+[remap]
+
+importer="glsl"
+type="RDShaderFile"
+uid="uid://b05wvbond724m"
+path="res://.godot/imported/ray_marcher.glsl-361711f67dd564acd982334019e35f86.res"
+
+[deps]
+
+source_file="res://addons/voxel_playground/src/shaders/ray_marcher.glsl"
+dest_files=["res://.godot/imported/ray_marcher.glsl-361711f67dd564acd982334019e35f86.res"]
+
+[params]
+
