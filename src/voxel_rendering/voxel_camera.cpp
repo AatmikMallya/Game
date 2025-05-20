@@ -79,7 +79,8 @@ void VoxelCamera::set_output_texture(TextureRect *value)
 void VoxelCamera::init()
 {
     //we want to use one RD for all shaders relevant to the camera.
-    _rd = RenderingServer::get_singleton()->create_local_rendering_device();
+    // _rd = RenderingServer::get_singleton()->create_local_rendering_device();
+    _rd = RenderingServer::get_singleton()->get_rendering_device();
 
 
     //get resolution
@@ -118,17 +119,18 @@ void VoxelCamera::init()
 
     Ref<RDTextureView> output_texture_view = memnew(RDTextureView);
     { // output texture
-        auto output_format = cs->create_texture_format(render_parameters.width, render_parameters.height, RenderingDevice::DATA_FORMAT_R8G8B8A8_UNORM);
+        auto output_format = cs->create_texture_format(render_parameters.width, render_parameters.height, RenderingDevice::DATA_FORMAT_R32G32B32A32_SFLOAT);
         if (output_texture_rect == nullptr)
         {
             UtilityFunctions::printerr("No output texture set.");
             return;
         }
-        output_image = Image::create(render_parameters.width, render_parameters.height, false, Image::FORMAT_RGBA8);
-        output_texture = ImageTexture::create_from_image(output_image);
-        output_texture_rect->set_texture(output_texture);
-        
+        output_image = Image::create(render_parameters.width, render_parameters.height, false, Image::FORMAT_RGBAF);
         output_texture_rid = cs->create_image_uniform(output_image, output_format, output_texture_view, 0, 0);
+
+        output_texture.instantiate();
+        output_texture->set_texture_rd_rid(output_texture_rid);
+        output_texture_rect->set_texture(output_texture);
     }
 
     Ref<RDTextureView> depth_texture_view = memnew(RDTextureView);
@@ -162,13 +164,13 @@ void VoxelCamera::render()
 
     // render
     Vector2i Size = {render_parameters.width, render_parameters.height};
-    cs->compute({static_cast<int32_t>(std::ceil(Size.x / 32.0f)), static_cast<int32_t>(std::ceil(Size.y / 32.0f)), 1});
+    cs->compute({static_cast<int32_t>(std::ceil(Size.x / 32.0f)), static_cast<int32_t>(std::ceil(Size.y / 32.0f)), 1}, false);
     
     { // post processing
 
     }
     
-    output_image->set_data(Size.x, Size.y, false, Image::FORMAT_RGBA8,
-                           cs->get_image_uniform_buffer(output_texture_rid));
-    output_texture->update(output_image);
+    // output_image->set_data(Size.x, Size.y, false, Image::FORMAT_RGBA8,
+    //                        cs->get_image_uniform_buffer(output_texture_rid));
+    // output_texture->update(output_image);
 }

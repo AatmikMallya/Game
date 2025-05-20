@@ -4,7 +4,7 @@
 #include "gdcs/include/gdcs.h"
 #include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/classes/image.hpp>
-#include <godot_cpp/classes/image_texture.hpp>
+#include <godot_cpp/classes/texture2drd.hpp>
 #include <godot_cpp/classes/node3d.hpp>
 #include <godot_cpp/classes/rd_texture_format.hpp>
 #include <godot_cpp/classes/rd_texture_view.hpp>
@@ -88,7 +88,7 @@ class VoxelCamera : public Node3D
     TextureRect *output_texture_rect = nullptr;
     Ref<Image> output_image;
     Ref<Image> depth_image;
-    Ref<ImageTexture> output_texture;
+    Ref<Texture2DRD> output_texture;
 
     RenderParameters render_parameters;
     CameraParameters camera_parameters;
