@@ -7,9 +7,10 @@ void VoxelCamera::_bind_methods()
     ClassDB::bind_method(D_METHOD("set_fov", "value"), &VoxelCamera::set_fov);
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "fov"), "set_fov", "get_fov");
 
-    // ClassDB::bind_method(D_METHOD("get_num_bounces"), &VoxelCamera::get_num_bounces);
-    // ClassDB::bind_method(D_METHOD("set_num_bounces", "value"), &VoxelCamera::set_num_bounces);
-    // ADD_PROPERTY(PropertyInfo(Variant::INT, "num_bounces"), "set_num_bounces", "get_num_bounces");
+    ClassDB::bind_method(D_METHOD("get_voxel_world"), &VoxelCamera::get_voxel_world);
+    ClassDB::bind_method(D_METHOD("set_voxel_world", "value"), &VoxelCamera::set_voxel_world);
+    ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "voxel_world", PROPERTY_HINT_NODE_TYPE, "VoxelWorld"),
+                 "set_voxel_world", "get_voxel_world");
 
     ClassDB::bind_method(D_METHOD("get_output_texture"), &VoxelCamera::get_output_texture);
     ClassDB::bind_method(D_METHOD("set_output_texture", "value"), &VoxelCamera::set_output_texture);
@@ -75,13 +76,25 @@ void VoxelCamera::set_output_texture(TextureRect *value)
     output_texture_rect = value;
 }
 
+VoxelWorld *VoxelCamera::get_voxel_world() const
+{
+    return voxel_world;
+}
+
+void VoxelCamera::set_voxel_world(VoxelWorld *value)
+{
+    voxel_world = value;
+}
 
 void VoxelCamera::init()
 {
-    //we want to use one RD for all shaders relevant to the camera.
-    // _rd = RenderingServer::get_singleton()->create_local_rendering_device();
-    _rd = RenderingServer::get_singleton()->get_rendering_device();
+    if (voxel_world == nullptr)
+    {
+        UtilityFunctions::printerr("No voxel world set.");
+        return;
+    }
 
+    _rd = RenderingServer::get_singleton()->get_rendering_device();
 
     //get resolution
     Vector2i resolution = DisplayServer::get_singleton()->window_get_size();
@@ -90,16 +103,22 @@ void VoxelCamera::init()
 
     projection_matrix = Projection::create_perspective(fov, static_cast<float>(resolution.width) / resolution.height, near, far, false);
 
-
     // setup compute shader
-    cs = new ComputeShader("res://addons/voxel_playground/src/shaders/ray_marcher.glsl", _rd, {"#define TESTe"});
+    cs = new ComputeShader("res://addons/voxel_playground/src/shaders/voxel_renderer.glsl", _rd, {"#define TESTe"});
+
+    //--------- Voxel BUFFERS ---------
+    {
+        cs->add_existing_buffer(voxel_world->get_voxel_data_rid(), RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 0, 0);
+        cs->add_existing_buffer(voxel_world->get_voxel_properties_rid(), RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 1, 0);
+    }
+
     //--------- GENERAL BUFFERS ---------
     { // input general buffer
         render_parameters.width = resolution.x;
         render_parameters.height = resolution.y;
         render_parameters.fov = fov;
 
-        render_parameters_rid = cs->create_storage_buffer_uniform(render_parameters.to_packed_byte_array(), 2, 0);
+        render_parameters_rid = cs->create_storage_buffer_uniform(render_parameters.to_packed_byte_array(), 2, 1);
     }
 
     { //camera buffer        
@@ -114,7 +133,7 @@ void VoxelCamera::init()
         camera_parameters.nearPlane = near;
         camera_parameters.farPlane = far;
 
-        camera_parameters_rid = cs->create_storage_buffer_uniform(camera_parameters.to_packed_byte_array(), 3, 0);
+        camera_parameters_rid = cs->create_storage_buffer_uniform(camera_parameters.to_packed_byte_array(), 3, 1);
     }
 
     Ref<RDTextureView> output_texture_view = memnew(RDTextureView);
@@ -126,7 +145,7 @@ void VoxelCamera::init()
             return;
         }
         output_image = Image::create(render_parameters.width, render_parameters.height, false, Image::FORMAT_RGBAF);
-        output_texture_rid = cs->create_image_uniform(output_image, output_format, output_texture_view, 0, 0);
+        output_texture_rid = cs->create_image_uniform(output_image, output_format, output_texture_view, 0, 1);
 
         output_texture.instantiate();
         output_texture->set_texture_rd_rid(output_texture_rid);
@@ -137,7 +156,7 @@ void VoxelCamera::init()
     { // depth texture
         auto depth_format = cs->create_texture_format(render_parameters.width, render_parameters.height, RenderingDevice::DATA_FORMAT_R32_SFLOAT);
         depth_image = Image::create(render_parameters.width, render_parameters.height, false, Image::FORMAT_RF);        
-        depth_texture_rid = cs->create_image_uniform(depth_image, depth_format, depth_texture_view, 1, 0);
+        depth_texture_rid = cs->create_image_uniform(depth_image, depth_format, depth_texture_view, 1, 1);
     }
 
     cs->finish_create_uniforms();

@@ -1,5 +1,6 @@
 #include "register_types.h"
 #include "voxel_rendering/voxel_camera.h"
+#include "voxel_world/voxel_world.h"
 
 using namespace godot;
 
@@ -8,7 +9,7 @@ void initialize_voxel_playground_module(ModuleInitializationLevel p_level)
     if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE)
     {
         GDREGISTER_CLASS(VoxelCamera);
-        UtilityFunctions::print("Voxel Playground module initialized.");
+        GDREGISTER_CLASS(VoxelWorld);
     }
 }
 

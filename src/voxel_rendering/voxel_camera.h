@@ -15,6 +15,7 @@
 #include <godot_cpp/variant/transform3d.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 #include <godot_cpp/classes/display_server.hpp>
+#include <voxel_world.h>
 
 using namespace godot;
 
@@ -70,14 +71,15 @@ class VoxelCamera : public Node3D
     float get_fov() const;
     void set_fov(float value);
 
-    // int get_num_bounces() const;
-    // void set_num_bounces(int value);
-
     TextureRect *get_output_texture() const;
     void set_output_texture(TextureRect *value);
 
+    VoxelWorld *get_voxel_world() const;
+    void set_voxel_world(VoxelWorld* value);
+
   private:
     void init();
+    void update(double delta);
     void clear_compute_shader();
     void render();
 
@@ -86,6 +88,7 @@ class VoxelCamera : public Node3D
 
     ComputeShader *cs = nullptr;
     TextureRect *output_texture_rect = nullptr;
+    VoxelWorld *voxel_world = nullptr;
     Ref<Image> output_image;
     Ref<Image> depth_image;
     Ref<Texture2DRD> output_texture;

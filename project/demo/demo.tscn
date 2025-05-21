@@ -1,20 +1,18 @@
 [gd_scene load_steps=4 format=3 uid="uid://s8dmi2g1hu2t"]
 
-[ext_resource type="Script" uid="uid://bpaijq7jcidqq" path="res://demo/movable_camera.gd" id="1_d6po2"]
-
-[sub_resource type="SphereMesh" id="SphereMesh_d6po2"]
-radius = 1.0
-height = 2.0
+[ext_resource type="Script" uid="uid://bpaijq7jcidqq" path="res://demo/auxiliary/movable_camera.gd" id="1_d6po2"]
+[ext_resource type="Script" path="res://demo/auxiliary/fps_meter.gd" id="2_ytiva"]
 
 [sub_resource type="ImageTexture" id="ImageTexture_5hjng"]
 
 [node name="Node3D" type="Node3D"]
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.0857763)
-mesh = SubResource("SphereMesh_d6po2")
+[node name="VoxelWorld" type="VoxelWorld" parent="."]
+size = Vector3i(512, 512, 512)
+scale = 0.1
 
-[node name="VoxelCamera" type="VoxelCamera" parent="." node_paths=PackedStringArray("output_texture")]
+[node name="VoxelCamera" type="VoxelCamera" parent="." node_paths=PackedStringArray("voxel_world", "output_texture")]
+voxel_world = NodePath("../VoxelWorld")
 output_texture = NodePath("TextureRect")
 script = ExtResource("1_d6po2")
 
@@ -22,6 +20,16 @@ script = ExtResource("1_d6po2")
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_left = -21.0
+offset_top = 6.0
+offset_right = -21.0
+offset_bottom = 6.0
 grow_horizontal = 2
 grow_vertical = 2
 texture = SubResource("ImageTexture_5hjng")
+
+[node name="Label" type="Label" parent="." node_paths=PackedStringArray("reference_node")]
+offset_right = 40.0
+offset_bottom = 23.0
+script = ExtResource("2_ytiva")
+reference_node = NodePath("../VoxelCamera")
