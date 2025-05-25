@@ -1,15 +1,16 @@
 [gd_scene load_steps=4 format=3 uid="uid://s8dmi2g1hu2t"]
 
 [ext_resource type="Script" uid="uid://bpaijq7jcidqq" path="res://demo/auxiliary/movable_camera.gd" id="1_d6po2"]
-[ext_resource type="Script" path="res://demo/auxiliary/fps_meter.gd" id="2_ytiva"]
+[ext_resource type="Script" uid="uid://ojind5ypwi07" path="res://demo/auxiliary/fps_meter.gd" id="2_ytiva"]
 
 [sub_resource type="ImageTexture" id="ImageTexture_5hjng"]
 
 [node name="Node3D" type="Node3D"]
 
 [node name="VoxelWorld" type="VoxelWorld" parent="."]
-size = Vector3i(512, 512, 512)
-scale = 0.1
+brick_map_size = Vector3i(8, 8, 8)
+simulation_enabled = false
+transform = Transform3D(0.999641, -0.0174314, -0.0203317, 0.017435, 0.999848, 0, 0.0203286, -0.000354483, 0.999793, 0, 0, 0)
 
 [node name="VoxelCamera" type="VoxelCamera" parent="." node_paths=PackedStringArray("voxel_world", "output_texture")]
 voxel_world = NodePath("../VoxelWorld")
@@ -20,10 +21,6 @@ script = ExtResource("1_d6po2")
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -21.0
-offset_top = 6.0
-offset_right = -21.0
-offset_bottom = 6.0
 grow_horizontal = 2
 grow_vertical = 2
 texture = SubResource("ImageTexture_5hjng")

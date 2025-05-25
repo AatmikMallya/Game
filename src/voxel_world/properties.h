@@ -6,6 +6,11 @@
 
 namespace godot
 {
+    struct Brick { // we may add color to this for simple LOD
+        int occupancy_count;      // amount of voxels in the brick; 0 means the brick is empty
+        unsigned int voxel_data_pointer;  // index of the first voxel in the brick (voxels stored in Morton order)
+    };
+
     struct Voxel {
         int data;
     };
@@ -13,15 +18,15 @@ namespace godot
     struct VoxelWorldProperties // match the struct on the gpu
     {
         VoxelWorldProperties() = default;
-        VoxelWorldProperties(Vector3i size, float scale = 1.0f)
+        VoxelWorldProperties(Vector3i grid_size, Vector3i brick_grid_size, float scale = 1.0f)
             : scale(scale)
         {
-            width = size.x;
-            height = size.y;
-            depth = size.z;
+            this->grid_size = Vector4i(grid_size.x, grid_size.y, grid_size.z, 0);
+            this->brick_grid_size = Vector4i(brick_grid_size.x, brick_grid_size.y, brick_grid_size.z, 0);
         };
 
-        int width, height, depth;
+        Vector4i grid_size;
+        Vector4i brick_grid_size;
         float scale;
 
         PackedByteArray to_packed_byte_array()

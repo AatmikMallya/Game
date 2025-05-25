@@ -18,9 +18,12 @@ class VoxelWorldGenerator {
 public:
     VoxelWorldGenerator() {};
     ~VoxelWorldGenerator() {
-    };    
+    };
 
-    void populate(RenderingDevice* rd, RID voxel_data, RID properties, const Vector3i size);
+    void initialize_brick_grid(RenderingDevice *rd, RID voxel_bricks, RID voxel_data, RID properties,
+                               const Vector3i brick_grid_size);
+
+    void populate(RenderingDevice *rd, RID voxel_bricks, RID voxel_data, RID properties, const Vector3i size);
 };
 
 #endif // VOXEL_WORLD_GENERATOR_H

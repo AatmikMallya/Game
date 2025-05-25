@@ -38,6 +38,7 @@ void VoxelCamera::_notification(int p_what)
     }
     case NOTIFICATION_READY: {
         init();
+        break;
     }
     case NOTIFICATION_INTERNAL_PROCESS: {
         render();
@@ -108,8 +109,9 @@ void VoxelCamera::init()
 
     //--------- Voxel BUFFERS ---------
     {
-        cs->add_existing_buffer(voxel_world->get_voxel_data_rid(), RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 0, 0);
-        cs->add_existing_buffer(voxel_world->get_voxel_properties_rid(), RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 1, 0);
+        cs->add_existing_buffer(voxel_world->get_voxel_bricks_rid(), RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 0, 0);
+        cs->add_existing_buffer(voxel_world->get_voxel_data_rid(), RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 1, 0);
+        cs->add_existing_buffer(voxel_world->get_voxel_properties_rid(), RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 2, 0);
     }
 
     //--------- GENERAL BUFFERS ---------
