@@ -18,18 +18,26 @@ void main() {
     ivec3 pos = ivec3(gl_GlobalInvocationID.xyz);
     if (!isValidPos(pos)) return;
     
-    int index = posToIndex(pos);
+    uint brick_index = getBrickIndex(pos);
+    if(voxelBricks[brick_index].occupancy_count == 0) 
+        return;
+
+    uint voxel_index = voxelBricks[brick_index].voxel_data_pointer * BRICK_VOLUME + getVoxelIndexInBrick(pos); 
     
     // Only process voxels that contain at least one unit of water (or liquid)
-    if (voxelData[index].data >= 1) {
+    if (voxelData[voxel_index].data >= 1) {
         // First try to move straight down.
         ivec3 downPos = pos - ivec3(0, 1, 0);
         if (isValidPos(downPos)) {
-            int downIndex = posToIndex(downPos);
+            uint down_brick_index = getBrickIndex(downPos);
+            uint downIndex = posToIndex(downPos);
             if (voxelData[downIndex].data <= 1) {
                 // Transfer one unit downward.
                 atomicAdd(voxelData[downIndex].data, 1);
-                atomicAdd(voxelData[index].data, -1);
+                atomicAdd(voxelBricks[down_brick_index].occupancy_count, 1);
+
+                atomicAdd(voxelData[voxel_index].data, -1);
+                atomicAdd(voxelBricks[brick_index].occupancy_count, -1);
                 return;
             }
         }
@@ -56,11 +64,15 @@ void main() {
         for (int i = 0; i < 4; i++) {
             ivec3 sidePos = pos + directions[i];
             if (isValidPos(sidePos)) {
-                int sideIndex = posToIndex(sidePos);
+                uint side_brick_index = getBrickIndex(sidePos);
+                uint sideIndex = posToIndex(sidePos);
                 if (voxelData[sideIndex].data <= 1) {
                     // Transfer one unit of water to the side.
                     atomicAdd(voxelData[sideIndex].data, 1);
-                    atomicAdd(voxelData[index].data, -1);
+                    atomicAdd(voxelBricks[side_brick_index].occupancy_count, 1);
+
+                    atomicAdd(voxelData[voxel_index].data, -1);
+                    atomicAdd(voxelBricks[brick_index].occupancy_count, -1);
                     return;
                 }
             }

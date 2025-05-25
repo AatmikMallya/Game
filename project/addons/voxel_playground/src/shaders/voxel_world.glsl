@@ -90,12 +90,13 @@ float voxelRaytrace(vec3 origin, vec3 direction, vec2 range, out ivec3 grid_posi
     ivec3 step_dir   = ivec3(sign(direction));
     vec3 invAbsDir   = 1.0 / max(abs(direction), vec3(1e-9));
     vec3 factor      = step(vec3(0.0), direction);
+
     vec3 lowerDistance = (pos - vec3(grid_position) * scale);
     vec3 upperDistance = (((vec3(grid_position) + vec3(1.0)) * scale) - pos);
     vec3 tDelta      = scale * abs(invDir);
     vec3 tMax        = vec3(t) + mix(lowerDistance, upperDistance, factor) * invAbsDir;
 
-    for (int i = 0; i < MAX_RAY_STEPS; i++) {
+    while(step_count < MAX_RAY_STEPS) {
         if (!isValidPos(grid_position))
             break;
         
@@ -121,26 +122,22 @@ float voxelRaytrace(vec3 origin, vec3 direction, vec2 range, out ivec3 grid_posi
         }
 
         uint voxelIndex = brick.voxel_data_pointer * BRICK_VOLUME + uint(getVoxelIndexInBrick(grid_position));
-        if (voxelData[voxelIndex].data != 0) {
-            step_count = i+1;
+        if (voxelData[voxelIndex].data != 0)
             return t;
-        }    
 
         float minT = min(min(tMax.x, tMax.y), tMax.z);
-        vec3 mask = vec3(
-            (abs(tMax.x - minT) < epsilon) ? 1.0 : 0.0,
-            (abs(tMax.y - minT) < epsilon) ? 1.0 : 0.0,
-            (abs(tMax.z - minT) < epsilon) ? 1.0 : 0.0
-        );
+        vec3 mask = vec3(1) - step(vec3(epsilon), abs(tMax - vec3(minT)));
+        vec3 ray_step = mask * step_dir;
 
         t = minT;
-        tMax += mask * tDelta;
-        vec3 ray_step = mask * step_dir;
+        tMax += mask * tDelta;        
         grid_position += ivec3(ray_step);
         normal = -ray_step;
         
         if (t > min(range.y, t_exit))
             break;
+
+        step_count++;
     }
     
     return -1.0;

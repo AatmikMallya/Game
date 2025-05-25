@@ -123,6 +123,7 @@ void main() {
         color = sampleSky(ray_dir);
     }
 
+
     // color = vec3(step_count) * 0.01;
 
     // color = sampleMiddleSlice(screen_uv);
