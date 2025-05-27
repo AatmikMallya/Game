@@ -1,7 +1,7 @@
 #ifndef VOXEL_WORLD_GLSL
 #define VOXEL_WORLD_GLSL
 
-#define MAX_RAY_STEPS 10000
+#define MAX_RAY_STEPS 1000
 #define BRICK_EDGE_LENGTH 8
 #define BRICK_VOLUME 512 
 
@@ -41,8 +41,23 @@ uint getBrickIndex(ivec3 pos) {
     return brickCoord.x + brickCoord.y * voxelWorldProperties.brick_grid_size.x + brickCoord.z * voxelWorldProperties.brick_grid_size.x * voxelWorldProperties.brick_grid_size.y;
 }
 
+
+#define USE_MORTON_ORDER
 uint getVoxelIndexInBrick(ivec3 pos) {
     ivec3 localPos = pos % BRICK_EDGE_LENGTH;
+#ifdef USE_MORTON_ORDER
+    uint morton = 0u;
+    morton |= ((uint(localPos.x) >> 0) & 1u) << 0;
+    morton |= ((uint(localPos.y) >> 0) & 1u) << 1;
+    morton |= ((uint(localPos.z) >> 0) & 1u) << 2;
+    morton |= ((uint(localPos.x) >> 1) & 1u) << 3;
+    morton |= ((uint(localPos.y) >> 1) & 1u) << 4;
+    morton |= ((uint(localPos.z) >> 1) & 1u) << 5;
+    morton |= ((uint(localPos.x) >> 2) & 1u) << 6;
+    morton |= ((uint(localPos.y) >> 2) & 1u) << 7;
+    morton |= ((uint(localPos.z) >> 2) & 1u) << 8;
+    return morton;
+#endif
     return uint(localPos.x +
            (localPos.y * BRICK_EDGE_LENGTH) +
            (localPos.z * BRICK_EDGE_LENGTH * BRICK_EDGE_LENGTH));
@@ -57,73 +72,110 @@ ivec3 worldToGrid(vec3 pos) {
     return ivec3(pos / voxelWorldProperties.scale);
 }
 
+ivec3 stepMask(vec3 sideDist) {
+    // Yoinked from https://www.shadertoy.com/view/l33XWf
+    bvec3 move;
+    bvec3 pon=lessThan(sideDist.xyz,sideDist.yzx);
+
+    move.x=pon.x && !pon.z;
+    move.y=pon.y && !pon.x;
+    move.z=!(move.x||move.y);
+
+    return ivec3(move);
+}
+
 // -------------------------------------- RAYCASTING --------------------------------------
-float voxelRaytrace(vec3 origin, vec3 direction, vec2 range, out ivec3 grid_position, out vec3 normal, out int step_count) {
+bool voxelTraceBrick(vec3 origin, vec3 direction, uint voxel_data_pointer, out uint voxelIndex, inout int step_count, inout vec3 normal, out ivec3 grid_position, out float t) {
+    origin = clamp(origin, vec3(0.0001), vec3(7.9999));
+    grid_position = ivec3(floor(origin));
+
+    ivec3 step_dir   = ivec3(sign(direction));
+    vec3 invAbsDir   = 1.0 / max(abs(direction), vec3(1e-9));
+    vec3 factor      = step(vec3(0.0), direction);
+
+    t = 0.0;
+
+    vec3 lowerDistance = (origin - vec3(grid_position));
+    vec3 upperDistance = (((vec3(grid_position) + vec3(1.0))) - origin);
+    vec3 tDelta      = invAbsDir;
+    vec3 tMax        = vec3(t) + mix(lowerDistance, upperDistance, factor) * invAbsDir;
+
+    while (all(greaterThanEqual(grid_position, ivec3(0))) &&
+           all(lessThanEqual(grid_position, ivec3(7)))) {
+        voxelIndex = voxel_data_pointer + uint(getVoxelIndexInBrick(grid_position));
+        if (voxelData[voxelIndex].data != 0) 
+            return true;
+
+        float minT = min(min(tMax.x, tMax.y), tMax.z);
+        vec3 mask = vec3(1) - step(vec3(1e-4), abs(tMax - vec3(minT)));
+        vec3 ray_step = mask * step_dir;
+
+        t = minT;
+        tMax += mask * tDelta;        
+        grid_position += ivec3(ray_step);
+        step_count++;
+        normal = -ray_step;
+    }
+    
+    return false;
+}
+
+bool voxelTraceWorld(vec3 origin, vec3 direction, vec2 range, out float t, out ivec3 grid_position, out vec3 normal, out int step_count) {
     step_count = 0;
     grid_position = ivec3(0);
-    normal = vec3(0, 1, 0);
+    float scale    = voxelWorldProperties.scale * BRICK_EDGE_LENGTH;
 
-    int gridWidth  = voxelWorldProperties.grid_size.x;
-    int gridHeight = voxelWorldProperties.grid_size.y;
-    int gridDepth  = voxelWorldProperties.grid_size.z;
-    float scale    = voxelWorldProperties.scale;
-
+    //ensure ray is in bounds
     vec3 bounds_min = vec3(0.0);
-    vec3 bounds_max = vec3(float(gridWidth), float(gridHeight), float(gridDepth)) * scale;
+    vec3 bounds_max = vec3(voxelWorldProperties.brick_grid_size.xyz) * scale;
 
     vec3 invDir = 1.0 / (direction + 1e-9);
     vec3 t0 = (bounds_min - origin) * invDir;
     vec3 t1 = (bounds_max - origin) * invDir;
+
     vec3 tmin = min(t0, t1);
     vec3 tmax = max(t0, t1);
     float t_entry = max(max(tmin.x, tmin.y), tmin.z);
     float t_exit  = min(min(tmax.x, tmax.y), tmax.z);
     if (t_entry > t_exit || t_exit < 0.0)
-        return -1.0;
+        return false;
 
-    float t = max(t_entry, range.x);
+    t = max(t_entry, range.x);
     vec3 pos = origin + t * direction;
     float epsilon = 1e-4;
     pos = clamp(pos, bounds_min, bounds_max - vec3(epsilon));
     grid_position = ivec3(floor(pos / scale));
 
+
+    //DDA
     ivec3 step_dir   = ivec3(sign(direction));
     vec3 invAbsDir   = 1.0 / max(abs(direction), vec3(1e-9));
     vec3 factor      = step(vec3(0.0), direction);
 
     vec3 lowerDistance = (pos - vec3(grid_position) * scale);
     vec3 upperDistance = (((vec3(grid_position) + vec3(1.0)) * scale) - pos);
-    vec3 tDelta      = scale * abs(invDir);
+    vec3 tDelta      = scale * invAbsDir;
     vec3 tMax        = vec3(t) + mix(lowerDistance, upperDistance, factor) * invAbsDir;
 
-    while(step_count < MAX_RAY_STEPS) {
-        if (!isValidPos(grid_position))
+    normal = vec3(0,1,0);
+
+    while(step_count < MAX_RAY_STEPS && t < min(range.y, t_exit)) {
+        if (!isValidPos(grid_position * BRICK_EDGE_LENGTH))
             break;
         
-        uint brick_index = getBrickIndex(grid_position);
+        uint brick_index = getBrickIndex(grid_position * BRICK_EDGE_LENGTH);
         Brick brick = voxelBricks[brick_index];
-        if (brick.occupancy_count == 0) {
-            ivec3 brick_min = (grid_position / BRICK_EDGE_LENGTH) * BRICK_EDGE_LENGTH;
-            ivec3 brick_max = brick_min + ivec3(BRICK_EDGE_LENGTH);
-            vec3 brickMinWorld = vec3(brick_min) * scale;
-            vec3 brickMaxWorld = vec3(brick_max) * scale;
-            vec3 t0_b = (brickMinWorld - pos) * invDir;
-            vec3 t1_b = (brickMaxWorld - pos) * invDir;
-            vec3 tmin_b = min(t0_b, t1_b);
-            vec3 tmax_b = max(t0_b, t1_b);
-            float t_exit_brick = min(min(tmax_b.x, tmax_b.y), tmax_b.z);            
-            t += t_exit_brick + epsilon;
-            pos = origin + t * direction;
-            grid_position = ivec3(floor(pos / scale));            
-            lowerDistance = (pos - vec3(grid_position) * scale);
-            upperDistance = (((vec3(grid_position) + vec3(1.0)) * scale) - pos);
-            tMax = vec3(t) + mix(lowerDistance, upperDistance, factor) * invAbsDir;
-            continue;
+        if (brick.occupancy_count > 0) {
+            uint voxelIndex;
+            pos = ((origin + t * direction) - grid_position * scale) * BRICK_EDGE_LENGTH;
+            ivec3 brick_grid_position;
+            float brick_t = 0.0;
+            if (voxelTraceBrick(pos, direction, brick.voxel_data_pointer * BRICK_VOLUME, voxelIndex, step_count, normal, brick_grid_position, brick_t)) {
+                t += brick_t * scale / BRICK_EDGE_LENGTH;
+                grid_position = grid_position * BRICK_EDGE_LENGTH + brick_grid_position;
+                return true;
+            }
         }
-
-        uint voxelIndex = brick.voxel_data_pointer * BRICK_VOLUME + uint(getVoxelIndexInBrick(grid_position));
-        if (voxelData[voxelIndex].data != 0)
-            return t;
 
         float minT = min(min(tMax.x, tMax.y), tMax.z);
         vec3 mask = vec3(1) - step(vec3(epsilon), abs(tMax - vec3(minT)));
@@ -133,14 +185,10 @@ float voxelRaytrace(vec3 origin, vec3 direction, vec2 range, out ivec3 grid_posi
         tMax += mask * tDelta;        
         grid_position += ivec3(ray_step);
         normal = -ray_step;
-        
-        if (t > min(range.y, t_exit))
-            break;
-
-        step_count++;
+        step_count++;        
     }
     
-    return -1.0;
+    return false;
 }
 
 #endif // VOXEL_WORLD_GLSL

@@ -3,6 +3,7 @@
 
 #include <godot_cpp/variant/packed_byte_array.hpp>
 #include <godot_cpp/variant/vector4.hpp>
+#include "gdcs/include/gdcs.h"
 
 namespace godot
 {
@@ -37,6 +38,13 @@ namespace godot
             return byte_array;
         }
     };
+
+    void add_voxel_buffers(ComputeShader* shader, const RID &voxel_bricks, const RID &voxel_data, const RID &properties)
+    {
+        shader->add_existing_buffer(voxel_bricks, RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 0, 0);
+        shader->add_existing_buffer(voxel_data, RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 1, 0);
+        shader->add_existing_buffer(properties, RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 2, 0);
+    }
 }
 
 #endif // VOXEL_WORLD_PROPERTIES_H

@@ -15,7 +15,7 @@ void main() {
 
     // Set the voxel data based on the distance
     uint brick_index = getBrickIndex(pos);
-    uint voxel_index = voxelBricks[brick_index].voxel_data_pointer * BRICK_VOLUME + getVoxelIndexInBrick(pos); 
+    uint voxel_index = voxelBricks[brick_index].voxel_data_pointer * BRICK_VOLUME + getVoxelIndexInBrick(pos);     
 
     if (d < radius) { // Inside the sphere
         atomicAdd(voxelBricks[brick_index].occupancy_count, 1);

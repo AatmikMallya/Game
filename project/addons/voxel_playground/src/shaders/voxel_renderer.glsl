@@ -10,13 +10,6 @@ struct Light {
     vec4 color;
 };
 
-struct Ray {
-    vec3 d;
-    vec3 o;
-    vec3 rD;
-};
-
-
 // ----------------------------------- GENERAL STORAGE -----------------------------------
 
 layout(set = 1, binding = 0, rgba8) restrict uniform writeonly image2D outputImage;
@@ -41,9 +34,8 @@ layout(std430, set = 1, binding = 3) restrict buffer Camera {
     float padding;
 } camera;
 
+
 // ----------------------------------- FUNCTIONS -----------------------------------
-
-
 vec2 pcg2d(inout uvec2 seed) {
 	// PCG2D, as described here: https://jcgt.org/published/0009/03/02/
 	seed = 1664525u * seed + 1013904223u;
@@ -84,7 +76,6 @@ vec3 sampleMiddleSlice(vec2 screen_uv) {
     y = clamp(y, 0, voxelWorldProperties.grid_size.y - 1);
     z = clamp(z, 0, voxelWorldProperties.grid_size.z - 1);
     
-    
     uint index = posToIndex(ivec3(x, y, z));
 
     uint voxelValue = voxelData[index].data;    
@@ -107,22 +98,22 @@ void main() {
     world_pos /= world_pos.w;
     vec3 ray_origin = camera.position.xyz;
     vec3 ray_dir = normalize(world_pos.xyz - ray_origin);
-
     ivec3 grid_position;
     vec3 normal;
     int step_count = 0;
-    float t = voxelRaytrace(ray_origin, ray_dir, vec2(camera.near, camera.far), grid_position, normal, step_count);
+
+    float t;
     vec3 color = vec3(0.0);
-    if (t >= 0.0) {
+
+    if (voxelTraceWorld(ray_origin, ray_dir, vec2(camera.near, camera.far), t, grid_position, normal, step_count)) {
         vec3 hitPos = ray_origin + t * ray_dir;
         vec3 baseColor = vec3(grid_position) / voxelWorldProperties.grid_size.xyz;
         color = baseColor;
         color *= 0.2 * dot(normal, vec3(0.25, 0.35, 0.4)) + 0.8;
-        
+
     } else {
         color = sampleSky(ray_dir);
     }
-
 
     // color = vec3(step_count) * 0.01;
 
