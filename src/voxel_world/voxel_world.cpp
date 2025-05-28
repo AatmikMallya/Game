@@ -17,19 +17,30 @@ VoxelWorld::~VoxelWorld() {
     // Cleanup code if necessary.
 }
 
+void VoxelWorld::edit_world(const Vector3 &camera_origin, const Vector3 &camera_direction, const float radius,
+                            const float range)
+{
+    if(_edit_pass == nullptr) return;
+    _edit_pass->edit_using_raycast(camera_origin, camera_direction, radius, range);
+}
+
 void VoxelWorld::_bind_methods() {
     // Bind the property accessor methods.
     ClassDB::bind_method(D_METHOD("get_brick_map_size"), &VoxelWorld::get_brick_map_size);
     ClassDB::bind_method(D_METHOD("set_brick_map_size", "brick_map_size"), &VoxelWorld::set_brick_map_size);
     ADD_PROPERTY(PropertyInfo(Variant::VECTOR3I, "brick_map_size"), "set_brick_map_size", "get_brick_map_size");
 
-    ClassDB::bind_method(D_METHOD("get_scale"), &VoxelWorld::get_scale);
-    ClassDB::bind_method(D_METHOD("set_scale", "scale"), &VoxelWorld::set_scale);
-    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "scale"), "set_scale", "get_scale");
+    // ClassDB::bind_method(D_METHOD("get_scale"), &VoxelWorld::get_scale);
+    // ClassDB::bind_method(D_METHOD("set_scale", "scale"), &VoxelWorld::set_scale);
+    // ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "scale"), "set_scale", "get_scale");
 
     ClassDB::bind_method(D_METHOD("get_simulation_enabled"), &VoxelWorld::get_simulation_enabled);
     ClassDB::bind_method(D_METHOD("set_simulation_enabled", "enabled"), &VoxelWorld::set_simulation_enabled);
     ADD_PROPERTY(PropertyInfo(Variant::BOOL, "simulation_enabled"), "set_simulation_enabled", "get_simulation_enabled");
+
+
+    //methods
+    ClassDB::bind_method(D_METHOD("edit_world", "camera_origin", "camera_direction", "radius", "range"), &VoxelWorld::edit_world);
 }
 
 void VoxelWorld::_notification(int p_what)
@@ -92,6 +103,10 @@ void VoxelWorld::init() {
 
     // Create the update pass.
     _update_pass = new VoxelWorldUpdatePass("res://addons/voxel_playground/src/shaders/automata.glsl", _rd, _voxel_bricks_rid, _voxel_data_rid, _voxel_properties_rid, size);
+
+
+    // Create the edit pass.
+    _edit_pass = new VoxelEditPass("res://addons/voxel_playground/src/shaders/voxel_edit/sphere_edit.glsl", _rd, _voxel_bricks_rid, _voxel_data_rid, _voxel_properties_rid, size);
 }
 
 void VoxelWorld::update(float delta) {
@@ -99,5 +114,7 @@ void VoxelWorld::update(float delta) {
         _update_pass->update(delta);
     }    
 }
+
+
 
 

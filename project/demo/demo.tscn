@@ -1,6 +1,7 @@
-[gd_scene load_steps=4 format=3 uid="uid://s8dmi2g1hu2t"]
+[gd_scene load_steps=5 format=3 uid="uid://s8dmi2g1hu2t"]
 
 [ext_resource type="Script" uid="uid://bpaijq7jcidqq" path="res://demo/auxiliary/movable_camera.gd" id="1_d6po2"]
+[ext_resource type="Script" uid="uid://bx00fnhlbwhlh" path="res://demo/world_editor.gd" id="2_dar0o"]
 [ext_resource type="Script" uid="uid://ojind5ypwi07" path="res://demo/auxiliary/fps_meter.gd" id="2_ytiva"]
 
 [sub_resource type="ImageTexture" id="ImageTexture_5hjng"]
@@ -9,13 +10,16 @@
 
 [node name="VoxelWorld" type="VoxelWorld" parent="."]
 brick_map_size = Vector3i(32, 16, 32)
-simulation_enabled = false
 transform = Transform3D(0.999641, -0.0174314, -0.0203317, 0.017435, 0.999848, 0, 0.0203286, -0.000354483, 0.999793, 0, 0, 0)
 
 [node name="VoxelCamera" type="VoxelCamera" parent="." node_paths=PackedStringArray("voxel_world", "output_texture")]
 voxel_world = NodePath("../VoxelWorld")
 output_texture = NodePath("TextureRect")
 script = ExtResource("1_d6po2")
+
+[node name="WorldEditor" type="Node3D" parent="VoxelCamera" node_paths=PackedStringArray("world")]
+script = ExtResource("2_dar0o")
+world = NodePath("../../VoxelWorld")
 
 [node name="TextureRect" type="TextureRect" parent="VoxelCamera"]
 anchors_preset = 15

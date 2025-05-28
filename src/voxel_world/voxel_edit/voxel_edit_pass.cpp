@@ -8,26 +8,27 @@ using namespace godot;
 
 VoxelEditPass::VoxelEditPass(String shader_path, RenderingDevice * rd, RID voxel_bricks, RID voxel_data, RID voxel_properties, const Vector3i size) : _size(size){
 
-    voxel_edit_pass_params edit_properties = {
-        Vector4(0, 0, 0, 1), // camera_origin
+    _edit_params = {
+        Vector4(1, 1, 1, 1), // camera_origin
         Vector4(0, 0, -1, 0), // camera_direction
         Vector4(0, 0, 0, 1), // hit_position
         0.1f, // near
         100.0f, // range
-        false, // hit
-        _radius // radius
+        100.0f // radius
     };
 
     ray_cast_shader = new ComputeShader("res://addons/voxel_playground/src/shaders/voxel_edit/raycast.glsl", rd);
     add_voxel_buffers(ray_cast_shader, voxel_bricks, voxel_data, voxel_properties);
+    _edit_params_rid = ray_cast_shader->create_storage_buffer_uniform(_edit_params.to_packed_byte_array(), 0, 1);
     ray_cast_shader->finish_create_uniforms();
 
     edit_shader = new ComputeShader(shader_path, rd);
     add_voxel_buffers(edit_shader, voxel_bricks, voxel_data, voxel_properties);
+    edit_shader->add_existing_buffer(_edit_params_rid, RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 0, 1);
     edit_shader->finish_create_uniforms();
 }
 
-void VoxelEditPass::update(float delta)
+void VoxelEditPass::edit_using_raycast(const Vector3 &camera_origin, const Vector3 &camera_direction, const float radius, const float range)
 {
     if (ray_cast_shader == nullptr || !ray_cast_shader->check_ready() || edit_shader == nullptr || !edit_shader->check_ready()) 
     {
@@ -35,7 +36,23 @@ void VoxelEditPass::update(float delta)
         return;
     }
 
+    _edit_params.camera_origin = Vector4(camera_origin.x, camera_origin.y, camera_origin.z, 1.0f);
+    _edit_params.camera_direction = Vector4(camera_direction.x, camera_direction.y, camera_direction.z, 0.0f);
+    _edit_params.hit_position = Vector4(0, 0, 0, -1);
+    _edit_params.near = 0.1f;
+    _edit_params.far = range;
+    _edit_params.radius = radius;
+
+    //raycast
+    ray_cast_shader->update_storage_buffer_uniform(_edit_params_rid, _edit_params.to_packed_byte_array());
+    ray_cast_shader->compute(Vector3i(1,1,1), false); 
+
+    PackedByteArray arr =  ray_cast_shader->get_storage_buffer_uniform(_edit_params_rid);
+    VoxelEditParams *params = reinterpret_cast<VoxelEditParams *>(arr.ptrw());
+
+    //edit at found position
     const Vector3 group_size = Vector3(8, 8, 8);
-    const Vector3i group_count = Vector3i(std::ceil(_radius / group_size.x), std::ceil(_radius / group_size.y), std::ceil(_radius / group_size.z));
+    const Vector3i group_count = Vector3i(std::ceil(2.0f * radius / group_size.x), std::ceil(2.0f * radius / group_size.y), std::ceil(2.0f * radius / group_size.z));
     edit_shader->compute(group_count, false);
 }
+

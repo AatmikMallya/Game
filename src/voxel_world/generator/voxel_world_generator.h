@@ -6,7 +6,7 @@
 #include <godot_cpp/variant/rid.hpp>
 #include <godot_cpp/core/class_db.hpp>
 
-#include "voxel_world/properties.h"
+#include "voxel_world/voxel_properties.h"
 #include "gdcs/include/gdcs.h"
 
 using namespace godot;

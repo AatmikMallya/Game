@@ -8,7 +8,7 @@
 #include <godot_cpp/variant/rid.hpp>
 
 #include "gdcs/include/gdcs.h"
-#include "voxel_world/properties.h"
+#include "voxel_world/voxel_properties.h"
 
 using namespace godot;
 

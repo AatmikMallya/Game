@@ -53,3 +53,4 @@ Thumbs.db
 desktop.ini
 vc140.pdb
 src/**/*.obj
+project/export/

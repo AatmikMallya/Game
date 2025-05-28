@@ -6,8 +6,9 @@
 #include <godot_cpp/variant/vector3i.hpp>
 #include <godot_cpp/classes/rendering_device.hpp>
 
-#include "voxel_world/properties.h"
+#include "voxel_world/voxel_properties.h"
 #include "voxel_world/cellular_automata/voxel_world_update_pass.h"
+#include "voxel_world/voxel_edit/voxel_edit_pass.h"
 
 using namespace godot;
 
@@ -32,6 +33,7 @@ private:
     RenderingDevice* _rd;
 
     VoxelWorldUpdatePass* _update_pass = nullptr;
+    VoxelEditPass* _edit_pass = nullptr;
 
     void init();
     void update(float delta);
@@ -49,6 +51,8 @@ public:
 
     void set_simulation_enabled(bool enabled) { simulation_enabled = enabled; }
     bool get_simulation_enabled() const { return simulation_enabled; }
+
+    void edit_world(const Vector3 &camera_origin, const Vector3 &camera_direction, const float radius, const float range);
 
     RID get_voxel_data_rid() const { return _voxel_data_rid; }
     RID get_voxel_bricks_rid() const { return _voxel_bricks_rid; }

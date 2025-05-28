@@ -30,7 +30,7 @@ void main() {
         ivec3 downPos = pos - ivec3(0, 1, 0);
         if (isValidPos(downPos)) {
             uint down_brick_index = getBrickIndex(downPos);
-            uint downIndex = posToIndex(downPos);
+            uint downIndex = voxelBricks[down_brick_index].voxel_data_pointer * BRICK_VOLUME + getVoxelIndexInBrick(downPos); 
             if (voxelData[downIndex].data <= 1) {
                 // Transfer one unit downward.
                 atomicAdd(voxelData[downIndex].data, 1);
@@ -65,7 +65,7 @@ void main() {
             ivec3 sidePos = pos + directions[i];
             if (isValidPos(sidePos)) {
                 uint side_brick_index = getBrickIndex(sidePos);
-                uint sideIndex = posToIndex(sidePos);
+                uint sideIndex = voxelBricks[side_brick_index].voxel_data_pointer * BRICK_VOLUME + getVoxelIndexInBrick(sidePos); 
                 if (voxelData[sideIndex].data <= 1) {
                     // Transfer one unit of water to the side.
                     atomicAdd(voxelData[sideIndex].data, 1);
