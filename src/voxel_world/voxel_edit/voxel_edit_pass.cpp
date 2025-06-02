@@ -47,8 +47,8 @@ void VoxelEditPass::edit_using_raycast(const Vector3 &camera_origin, const Vecto
     ray_cast_shader->update_storage_buffer_uniform(_edit_params_rid, _edit_params.to_packed_byte_array());
     ray_cast_shader->compute(Vector3i(1,1,1), false); 
 
-    PackedByteArray arr =  ray_cast_shader->get_storage_buffer_uniform(_edit_params_rid);
-    VoxelEditParams *params = reinterpret_cast<VoxelEditParams *>(arr.ptrw());
+    // PackedByteArray arr =  ray_cast_shader->get_storage_buffer_uniform(_edit_params_rid);
+    // VoxelEditParams *params = reinterpret_cast<VoxelEditParams *>(arr.ptrw());
 
     //edit at found position
     const Vector3 group_size = Vector3(8, 8, 8);

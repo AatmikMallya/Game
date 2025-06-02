@@ -9,6 +9,7 @@ void initialize_voxel_playground_module(ModuleInitializationLevel p_level)
     if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE)
     {
         GDREGISTER_CLASS(VoxelCamera);
+        GDREGISTER_CLASS(VoxelWorldCollider);
         GDREGISTER_CLASS(VoxelWorld);
     }
 }

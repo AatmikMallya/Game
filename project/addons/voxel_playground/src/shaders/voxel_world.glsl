@@ -84,6 +84,10 @@ ivec3 stepMask(vec3 sideDist) {
     return ivec3(move);
 }
 
+bool voxelIsAir(Voxel voxel) {
+    return voxel.data == 0;
+}
+
 // -------------------------------------- RAYCASTING --------------------------------------
 bool voxelTraceBrick(vec3 origin, vec3 direction, uint voxel_data_pointer, out uint voxelIndex, inout int step_count, inout vec3 normal, out ivec3 grid_position, out float t) {
     origin = clamp(origin, vec3(0.0001), vec3(7.9999));

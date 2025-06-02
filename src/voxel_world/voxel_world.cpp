@@ -1,30 +1,33 @@
 
 #include "voxel_world.h"
+#include "voxel_world_generator.h"
 #include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/classes/rendering_server.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
-#include "voxel_world_generator.h"
-
 
 using namespace godot;
 
-VoxelWorld::VoxelWorld() {
+VoxelWorld::VoxelWorld()
+{
     brick_map_size = Vector3i(16, 16, 16);
     scale = 0.125f;
 }
 
-VoxelWorld::~VoxelWorld() {
+VoxelWorld::~VoxelWorld()
+{
     // Cleanup code if necessary.
 }
 
 void VoxelWorld::edit_world(const Vector3 &camera_origin, const Vector3 &camera_direction, const float radius,
                             const float range)
 {
-    if(_edit_pass == nullptr) return;
+    if (_edit_pass == nullptr)
+        return;
     _edit_pass->edit_using_raycast(camera_origin, camera_direction, radius, range);
 }
 
-void VoxelWorld::_bind_methods() {
+void VoxelWorld::_bind_methods()
+{
     // Bind the property accessor methods.
     ClassDB::bind_method(D_METHOD("get_brick_map_size"), &VoxelWorld::get_brick_map_size);
     ClassDB::bind_method(D_METHOD("set_brick_map_size", "brick_map_size"), &VoxelWorld::set_brick_map_size);
@@ -38,9 +41,19 @@ void VoxelWorld::_bind_methods() {
     ClassDB::bind_method(D_METHOD("set_simulation_enabled", "enabled"), &VoxelWorld::set_simulation_enabled);
     ADD_PROPERTY(PropertyInfo(Variant::BOOL, "simulation_enabled"), "set_simulation_enabled", "get_simulation_enabled");
 
+    ClassDB::bind_method(D_METHOD("set_voxel_world_collider", "collider"), &VoxelWorld::set_voxel_world_collider);
+    ClassDB::bind_method(D_METHOD("get_voxel_world_collider"), &VoxelWorld::get_voxel_world_collider);
+    ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "voxel_world_collider", PROPERTY_HINT_NODE_TYPE, "VoxelWorldCollider"),
+                 "set_voxel_world_collider", "get_voxel_world_collider");
 
-    //methods
-    ClassDB::bind_method(D_METHOD("edit_world", "camera_origin", "camera_direction", "radius", "range"), &VoxelWorld::edit_world);
+    ClassDB::bind_method(D_METHOD("get_player_node"), &VoxelWorld::get_player_node);
+    ClassDB::bind_method(D_METHOD("set_player_node", "player_node"), &VoxelWorld::set_player_node);
+    ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "player_node", PROPERTY_HINT_NODE_TYPE, "Node3D"), "set_player_node",
+                 "get_player_node");
+
+    // methods
+    ClassDB::bind_method(D_METHOD("edit_world", "camera_origin", "camera_direction", "radius", "range"),
+                         &VoxelWorld::edit_world);
 }
 
 void VoxelWorld::_notification(int p_what)
@@ -73,13 +86,14 @@ void VoxelWorld::_notification(int p_what)
     }
 }
 
-void VoxelWorld::init() {
-    Vector3i size = brick_map_size * BRICK_SIZE;    
+void VoxelWorld::init()
+{
+    Vector3i size = brick_map_size * BRICK_SIZE;
 
     _voxel_properties = VoxelWorldProperties(size, brick_map_size, scale);
     _rd = RenderingServer::get_singleton()->get_rendering_device();
 
-    //create grid buffer
+    // create grid buffer
     PackedByteArray voxel_bricks;
     int brick_count = brick_map_size.x * brick_map_size.y * brick_map_size.z;
     voxel_bricks.resize(brick_count * sizeof(Brick));
@@ -91,7 +105,7 @@ void VoxelWorld::init() {
     voxel_data.resize(voxel_count * sizeof(Voxel));
     _voxel_data_rid = _rd->storage_buffer_create(voxel_data.size(), voxel_data);
 
-    // Create the voxel properties buffer. 
+    // Create the voxel properties buffer.
     PackedByteArray properties_data = _voxel_properties.to_packed_byte_array();
     _voxel_properties_rid = _rd->storage_buffer_create(properties_data.size(), properties_data);
 
@@ -100,21 +114,30 @@ void VoxelWorld::init() {
     generator.initialize_brick_grid(_rd, _voxel_bricks_rid, _voxel_data_rid, _voxel_properties_rid, brick_map_size);
     generator.populate(_rd, _voxel_bricks_rid, _voxel_data_rid, _voxel_properties_rid, size);
 
-
     // Create the update pass.
-    _update_pass = new VoxelWorldUpdatePass("res://addons/voxel_playground/src/shaders/automata.glsl", _rd, _voxel_bricks_rid, _voxel_data_rid, _voxel_properties_rid, size);
-
+    _update_pass = new VoxelWorldUpdatePass("res://addons/voxel_playground/src/shaders/automata.glsl", _rd,
+                                            _voxel_bricks_rid, _voxel_data_rid, _voxel_properties_rid, size);
 
     // Create the edit pass.
-    _edit_pass = new VoxelEditPass("res://addons/voxel_playground/src/shaders/voxel_edit/sphere_edit.glsl", _rd, _voxel_bricks_rid, _voxel_data_rid, _voxel_properties_rid, size);
+    _edit_pass = new VoxelEditPass("res://addons/voxel_playground/src/shaders/voxel_edit/sphere_edit.glsl", _rd,
+                                   _voxel_bricks_rid, _voxel_data_rid, _voxel_properties_rid, size);
+
+    // if collider set, initialize it
+    if (_voxel_world_collider != nullptr)
+    {
+        _voxel_world_collider->init(_rd, _voxel_bricks_rid, _voxel_data_rid, _voxel_properties_rid, scale);
+    }
 }
 
-void VoxelWorld::update(float delta) {
-    if(simulation_enabled) {
+void VoxelWorld::update(float delta)
+{
+    if (simulation_enabled)
+    {
         _update_pass->update(delta);
-    }    
+    }
+
+    if (_voxel_world_collider != nullptr && player_node != nullptr)
+    {
+        _voxel_world_collider->update(get_voxel_world_position(player_node->get_position()));
+    }
 }
-
-
-
-

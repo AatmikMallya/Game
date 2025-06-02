@@ -9,6 +9,7 @@
 #include "voxel_world/voxel_properties.h"
 #include "voxel_world/cellular_automata/voxel_world_update_pass.h"
 #include "voxel_world/voxel_edit/voxel_edit_pass.h"
+#include "voxel_world/colliders/voxel_world_collider.h"
 
 using namespace godot;
 
@@ -31,12 +32,18 @@ private:
     RID _voxel_properties_rid;
     VoxelWorldProperties _voxel_properties;
     RenderingDevice* _rd;
+    Node3D* player_node = nullptr;
 
     VoxelWorldUpdatePass* _update_pass = nullptr;
     VoxelEditPass* _edit_pass = nullptr;
+    VoxelWorldCollider* _voxel_world_collider = nullptr;
 
     void init();
     void update(float delta);
+
+    Vector3i get_voxel_world_position(const Vector3 &position) const {
+        return Vector3i(std::floor(position.x / scale), std::floor(position.y / scale), std::floor(position.z / scale));
+    }
 
 public:
     VoxelWorld();
@@ -51,6 +58,12 @@ public:
 
     void set_simulation_enabled(bool enabled) { simulation_enabled = enabled; }
     bool get_simulation_enabled() const { return simulation_enabled; }
+
+    void set_player_node(Node3D* node) { player_node = node; }
+    Node3D* get_player_node() const { return player_node; }
+
+    void set_voxel_world_collider(VoxelWorldCollider* collider) {_voxel_world_collider = collider;}
+    VoxelWorldCollider* get_voxel_world_collider() const { return _voxel_world_collider; }
 
     void edit_world(const Vector3 &camera_origin, const Vector3 &camera_direction, const float radius, const float range);
 
