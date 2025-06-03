@@ -22,12 +22,26 @@ namespace godot
         VoxelWorldProperties(Vector3i grid_size, Vector3i brick_grid_size, float scale = 1.0f)
             : scale(scale)
         {
-            this->grid_size = Vector4i(grid_size.x, grid_size.y, grid_size.z, 0);
-            this->brick_grid_size = Vector4i(brick_grid_size.x, brick_grid_size.y, brick_grid_size.z, 0);
+            _grid_size = Vector4i(grid_size.x, grid_size.y, grid_size.z, 0);
+            _brick_grid_size = Vector4i(brick_grid_size.x, brick_grid_size.y, brick_grid_size.z, 0);
         };
 
-        Vector4i grid_size;
-        Vector4i brick_grid_size;
+        void set_sky_colors(const Color &sky_color, const Color &ground_color) { 
+            _sky_color = Vector4(sky_color.r, sky_color.g, sky_color.b, 0); 
+            _ground_color = Vector4(ground_color.r, ground_color.g, ground_color.b, 0); 
+        }
+
+        void set_sun(const Color &sun_color, const Vector3 &sun_direction) { 
+            _sun_color = Vector4(sun_color.r, sun_color.g, sun_color.b, 0); 
+            _sun_direction = Vector4(sun_direction.x, sun_direction.y, sun_direction.z, 0); 
+        }
+
+        Vector4i _grid_size;
+        Vector4i _brick_grid_size;
+        Vector4 _sky_color;
+        Vector4 _ground_color;
+        Vector4 _sun_color;
+        Vector4 _sun_direction;
         float scale;
 
         PackedByteArray to_packed_byte_array()

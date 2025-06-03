@@ -18,6 +18,7 @@ void main() {
     vec3 normal;
     int step_count = 0;
     float t;
+    
 
     vec3 ray_origin = params.camera_origin.xyz;
     vec3 ray_dir = normalize(params.camera_direction.xyz);

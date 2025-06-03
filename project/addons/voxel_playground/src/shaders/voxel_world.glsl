@@ -24,8 +24,11 @@ layout(std430, set = 0, binding = 1) buffer VoxelWorldData {
 
 layout(std430, set = 0, binding = 2) buffer VoxelWorldProperties {
     ivec4 grid_size;
-
     ivec4 brick_grid_size;
+    vec4 sky_color;
+    vec4 ground_color;
+    vec4 sun_color;
+    vec4 sun_direction;
     float scale;
 } voxelWorldProperties;
 
@@ -193,6 +196,28 @@ bool voxelTraceWorld(vec3 origin, vec3 direction, vec2 range, out float t, out i
     }
     
     return false;
+}
+
+// -------------------------------------- Rendering --------------------------------------
+vec3 sampleSkyColor(vec3 direction) {
+    float intensity = max(0.0, 0.5 + dot(direction, vec3(0.0, 0.5, 0.0)));
+    vec3 sky = mix(voxelWorldProperties.ground_color.rgb, voxelWorldProperties.sky_color.rgb, intensity);
+
+    float sun_intensity = pow(max(0.0, dot(direction, voxelWorldProperties.sun_direction.xyz)), 50.0);
+
+    return mix(sky, voxelWorldProperties.sun_color.rgb, sun_intensity);
+}
+
+vec3 blinnPhongShading(vec3 baseColor, vec3 normal, vec3 lightDir, vec3 lightColor, vec3 viewDir) {
+    vec3 ambient = 0.2 * baseColor * sampleSkyColor(reflect(-viewDir, normal));
+    vec3 diffuse = max(dot(normal, lightDir), 0.0) * baseColor;
+    vec3 specular = 0.5 * pow(max(dot(reflect(-lightDir, normal), viewDir), 0.0), 100.0) * lightColor;
+    return ambient + diffuse + specular;
+}
+
+float computeShadow(vec3 position, vec3 normal, vec3 lightDir) {
+    float t; ivec3 grid_position; vec3 normal_out; int step_count;
+    return voxelTraceWorld(position + normal * 0.001, lightDir, vec2(0.0, 100.0), t, grid_position, normal_out, step_count) ? 0.6 : 1.0;
 }
 
 #endif // VOXEL_WORLD_GLSL

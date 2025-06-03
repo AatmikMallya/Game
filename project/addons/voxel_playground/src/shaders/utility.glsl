@@ -19,4 +19,28 @@ vec3 hsv2rgb(vec3 c)
     return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
 }
 
+uint compress_color16(vec3 color) {
+    // Convert RGB to HSV
+    vec3 hsv = rgb2hsv(color);
+    
+    // H: 7 bits, S: 4 bits, V: 5 bits
+    uint h = uint(hsv.x * 128.0);
+    uint s = uint(hsv.y * 16.0);
+    uint v = uint(hsv.z * 32.0);
+    
+    // Pack into a single uint
+    return (h << 9) | (s << 5) | v;
+}
+
+vec3 decompress_color16(uint packedColor) {
+    // Extract H, S, V components
+    uint h = (packedColor >> 9) & 0x7F; // 7 bits for hue
+    uint s = (packedColor >> 5) & 0x0F; // 4 bits for saturation
+    uint v = packedColor & 0x1F;        // 5 bits for value
+    
+    // Convert back to RGB
+    vec3 hsv = vec3(float(h) / 128.0, float(s) / 16.0, float(v) / 32.0);
+    return hsv2rgb(hsv);
+}
+
 #endif //UTILITY_GLSL

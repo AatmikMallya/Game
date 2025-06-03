@@ -31,8 +31,6 @@ class VoxelCamera : public Node3D
         int width;
         int height;
         float fov;
-        unsigned int triangleCount;
-        unsigned int blasCount;
 
         PackedByteArray to_packed_byte_array()
         {
@@ -51,7 +49,6 @@ class VoxelCamera : public Node3D
         int frame_index;
         float nearPlane;
         float farPlane;
-        float padding;
 
         PackedByteArray to_packed_byte_array()
         {

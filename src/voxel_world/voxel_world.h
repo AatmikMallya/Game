@@ -5,6 +5,7 @@
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/vector3i.hpp>
 #include <godot_cpp/classes/rendering_device.hpp>
+#include <godot_cpp/classes/directional_light3d.hpp>
 
 #include "voxel_world/voxel_properties.h"
 #include "voxel_world/cellular_automata/voxel_world_update_pass.h"
@@ -38,6 +39,11 @@ private:
     VoxelEditPass* _edit_pass = nullptr;
     VoxelWorldCollider* _voxel_world_collider = nullptr;
 
+
+    DirectionalLight3D* _sun_light = nullptr;
+    Color ground_color = Color(0.5, 0.3, 0.15, 1.0);
+    Color sky_color = Color(1.0, 1.0, 1.0, 1.0);
+
     void init();
     void update(float delta);
 
@@ -50,7 +56,7 @@ public:
     ~VoxelWorld();    
 
     // Property accessors for size.
-    void set_brick_map_size(const Vector3i &p_size) { brick_map_size = p_size; }
+    void set_brick_map_size(const Vector3i &p_size) { brick_map_size = p_size.clamp(Vector3i(0,0,0), Vector3i(256,256,256)); }
     Vector3i get_brick_map_size() const { return brick_map_size; }
 
     void set_scale(float p_scale) { scale = p_scale; }
@@ -59,13 +65,21 @@ public:
     void set_simulation_enabled(bool enabled) { simulation_enabled = enabled; }
     bool get_simulation_enabled() const { return simulation_enabled; }
 
+    void set_sun_light(DirectionalLight3D* node) { _sun_light = node; }
+    DirectionalLight3D* get_sun_light() const { return _sun_light; }
+
+    void set_ground_color(const Color &color) { ground_color = color; }
+    Color get_ground_color() const { return ground_color; }
+    void set_sky_color(const Color &color) { sky_color = color; }
+    Color get_sky_color() const { return sky_color; }
+
     void set_player_node(Node3D* node) { player_node = node; }
     Node3D* get_player_node() const { return player_node; }
 
     void set_voxel_world_collider(VoxelWorldCollider* collider) {_voxel_world_collider = collider;}
     VoxelWorldCollider* get_voxel_world_collider() const { return _voxel_world_collider; }
 
-    void edit_world(const Vector3 &camera_origin, const Vector3 &camera_direction, const float radius, const float range);
+    void edit_world(const Vector3 &camera_origin, const Vector3 &camera_direction, const float radius, const float range, const int value);
 
     RID get_voxel_data_rid() const { return _voxel_data_rid; }
     RID get_voxel_bricks_rid() const { return _voxel_bricks_rid; }

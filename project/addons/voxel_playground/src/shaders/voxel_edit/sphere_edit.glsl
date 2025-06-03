@@ -10,6 +10,7 @@ layout(std430, set = 1, binding = 0) restrict buffer Params {
     float near;
     float far;
     float radius;  
+    uint value;
 } params;
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
@@ -17,8 +18,7 @@ void main() {
     ivec3 pos = ivec3(gl_GlobalInvocationID.xyz);
     ivec3 world_pos = ivec3(params.hit_position.xyz) + pos - ivec3(params.radius);
     // ivec3 world_pos = pos;
-    // if (!isValidPos(world_pos) || params.hit_position.w < 0) return;
-    if (!isValidPos(world_pos)) return;
+    if (!isValidPos(world_pos) || params.hit_position.w < 0) return;
 
     // Calculate the distance from the center of the sphere
     vec3 center = params.hit_position.xyz;
@@ -33,6 +33,6 @@ void main() {
         if (voxelData[voxel_index].data == 1) return;
 
         atomicAdd(voxelBricks[brick_index].occupancy_count, 1);
-        voxelData[voxel_index].data = 1; 
+        voxelData[voxel_index].data = params.value; 
     }
 }

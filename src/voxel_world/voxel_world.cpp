@@ -19,11 +19,11 @@ VoxelWorld::~VoxelWorld()
 }
 
 void VoxelWorld::edit_world(const Vector3 &camera_origin, const Vector3 &camera_direction, const float radius,
-                            const float range)
+                            const float range, const int value)
 {
     if (_edit_pass == nullptr)
         return;
-    _edit_pass->edit_using_raycast(camera_origin, camera_direction, radius, range);
+    _edit_pass->edit_using_raycast(camera_origin, camera_direction, radius, range, value);
 }
 
 void VoxelWorld::_bind_methods()
@@ -51,8 +51,21 @@ void VoxelWorld::_bind_methods()
     ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "player_node", PROPERTY_HINT_NODE_TYPE, "Node3D"), "set_player_node",
                  "get_player_node");
 
+    ClassDB::bind_method(D_METHOD("get_sun_light"), &VoxelWorld::get_sun_light);
+    ClassDB::bind_method(D_METHOD("set_sun_light", "sun_light"), &VoxelWorld::set_sun_light);
+    ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "sun_light", PROPERTY_HINT_NODE_TYPE, "DirectionalLight3D"),
+                 "set_sun_light", "get_sun_light");
+
+    ClassDB::bind_method(D_METHOD("get_ground_color"), &VoxelWorld::get_ground_color);
+    ClassDB::bind_method(D_METHOD("set_ground_color", "ground_color"), &VoxelWorld::set_ground_color);
+    ADD_PROPERTY(PropertyInfo(Variant::COLOR, "ground_color"), "set_ground_color", "get_ground_color");
+
+    ClassDB::bind_method(D_METHOD("get_sky_color"), &VoxelWorld::get_sky_color);
+    ClassDB::bind_method(D_METHOD("set_sky_color", "sky_color"), &VoxelWorld::set_sky_color);
+    ADD_PROPERTY(PropertyInfo(Variant::COLOR, "sky_color"), "set_sky_color", "get_sky_color");
+
     // methods
-    ClassDB::bind_method(D_METHOD("edit_world", "camera_origin", "camera_direction", "radius", "range"),
+    ClassDB::bind_method(D_METHOD("edit_world", "camera_origin", "camera_direction", "radius", "range", "value"),
                          &VoxelWorld::edit_world);
 }
 
@@ -91,6 +104,9 @@ void VoxelWorld::init()
     Vector3i size = brick_map_size * BRICK_SIZE;
 
     _voxel_properties = VoxelWorldProperties(size, brick_map_size, scale);
+    _voxel_properties.set_sky_colors(sky_color, ground_color);
+    if (_sun_light != nullptr)
+        _voxel_properties.set_sun(_sun_light->get_color(), -_sun_light->get_global_transform().basis.rows[2]);
     _rd = RenderingServer::get_singleton()->get_rendering_device();
 
     // create grid buffer
@@ -102,6 +118,12 @@ void VoxelWorld::init()
     // Create the voxel data buffer.
     PackedByteArray voxel_data;
     int voxel_count = size.x * size.y * size.z;
+    if (voxel_count * sizeof(Voxel) > 8.0e9f)
+    {
+        UtilityFunctions::printerr(
+            "VoxelWorld: The voxel world is too large (exceeds 8GB). Reduce the brick map size or scale.");
+        return;
+    }
     voxel_data.resize(voxel_count * sizeof(Voxel));
     _voxel_data_rid = _rd->storage_buffer_create(voxel_data.size(), voxel_data);
 

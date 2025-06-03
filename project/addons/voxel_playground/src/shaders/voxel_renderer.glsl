@@ -20,8 +20,6 @@ layout(std430, set = 1, binding = 2) restrict buffer Params {
     int width;
     int height;
     float fov;
-    uint triangleCount;
-    uint blas_count;
 } params;
 
 layout(std430, set = 1, binding = 3) restrict buffer Camera {
@@ -31,7 +29,6 @@ layout(std430, set = 1, binding = 3) restrict buffer Camera {
     uint frame_index;
     float near;
     float far;
-    float padding;
 } camera;
 
 
@@ -60,11 +57,6 @@ vec2 box_muller(vec2 rands) {
     float R = sqrt(-2.0f * log(rands.x));
     float theta = 6.2831853f * rands.y;
     return vec2(cos(theta), sin(theta));
-}
-
-vec3 sampleSky(const vec3 direction) {
-    float t = 0.5 * (direction.y + 1.0);
-    return mix(vec3(0.95), vec3(0.9, 0.94, 1.0), t) * 1.0f;
 }
 
 vec3 sampleMiddleSlice(vec2 screen_uv) {
@@ -101,21 +93,27 @@ void main() {
     ivec3 grid_position;
     vec3 normal;
     int step_count = 0;
-
     float t;
     vec3 color = vec3(0.0);
 
+
     if (voxelTraceWorld(ray_origin, ray_dir, vec2(camera.near, camera.far), t, grid_position, normal, step_count)) {
         vec3 hitPos = ray_origin + t * ray_dir;
+        vec3 voxel_pos = vec3(grid_position) * voxelWorldProperties.scale + 0.5;
         vec3 baseColor = vec3(grid_position) / voxelWorldProperties.grid_size.xyz;
         color = baseColor;
-        color *= 0.2 * dot(normal, vec3(0.25, 0.35, 0.4)) + 0.8;
+        color *= 0.05 * dot(normal, vec3(0.25, 0.35, 0.4)) + 0.95; //discolor different faces slightly.
+
+        vec3 voxel_view_dir = normalize(camera.position.xyz - voxel_pos);
+
+        // direct illumination
+        float shadow = computeShadow(hitPos, normal, voxelWorldProperties.sun_direction.xyz);
+        color *= shadow;
+        color = blinnPhongShading(color, normal, voxelWorldProperties.sun_direction.xyz, voxelWorldProperties.sun_color.rgb * step(0.99, shadow), voxel_view_dir);
 
     } else {
-        color = sampleSky(ray_dir);
+        color = sampleSkyColor(ray_dir);
     }
-
-    // color = vec3(step_count) * 0.01;
 
     // color = sampleMiddleSlice(screen_uv);
 
