@@ -20,7 +20,7 @@ void VoxelWorldGenerator::initialize_brick_grid(RenderingDevice* rd, RID voxel_b
 
 void VoxelWorldGenerator::populate(RenderingDevice* rd, RID voxel_bricks, RID voxel_data, RID properties, const Vector3i size)
 {
-    compute_shader = new ComputeShader("res://addons/voxel_playground/src/shaders/generators/sphere.glsl", rd);
+    compute_shader = new ComputeShader("res://addons/voxel_playground/src/shaders/generators/floating_island.glsl", rd);
 
     compute_shader->add_existing_buffer(voxel_bricks, RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 0, 0);
     compute_shader->add_existing_buffer(voxel_data, RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 1, 0);

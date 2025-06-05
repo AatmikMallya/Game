@@ -27,6 +27,7 @@ private:
     Vector3i brick_map_size = Vector3i(16, 16, 16);
     float scale = 0.125f;
     bool simulation_enabled = true;
+    bool _initialized;
 
     RID _voxel_data_rid;
     RID _voxel_bricks_rid;

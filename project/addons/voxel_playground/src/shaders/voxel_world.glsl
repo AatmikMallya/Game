@@ -1,6 +1,8 @@
 #ifndef VOXEL_WORLD_GLSL
 #define VOXEL_WORLD_GLSL
 
+
+
 #define MAX_RAY_STEPS 1000
 #define BRICK_EDGE_LENGTH 8
 #define BRICK_VOLUME 512 
@@ -30,7 +32,51 @@ layout(std430, set = 0, binding = 2) buffer VoxelWorldProperties {
     vec4 sun_color;
     vec4 sun_direction;
     float scale;
+    int frame;
 } voxelWorldProperties;
+
+// -------------------------------------- VOXEL DATA --------------------------------------
+
+const uint VOXEL_TYPE_AIR = 0;
+const uint VOXEL_TYPE_SOLID = 1;
+const uint VOXEL_TYPE_WATER = 2;
+const uint VOXEL_TYPE_LAVA = 3;
+const vec3 DEFAULT_WATER_COLOR = vec3(0.1, 0.3, 0.8);
+
+Voxel createVoxel(uint type, vec3 color) {
+    Voxel voxel;
+    voxel.data = (type & 0xFF) << 24; // Store type in the highest byte
+    voxel.data |= (compress_color16(color) & 0xFFFF) << 8; //store color in the next 2 bytes
+    return voxel;
+}
+
+Voxel createAirVoxel() {
+    return createVoxel(VOXEL_TYPE_AIR, vec3(0.0));
+}
+
+Voxel createWaterVoxel() {
+    Voxel voxel = createVoxel(VOXEL_TYPE_WATER, DEFAULT_WATER_COLOR);
+    voxel.data |= 127;
+    return voxel;
+}
+
+
+vec3 getVoxelColor(Voxel voxel) {
+    uint color = (voxel.data >> 8) & 0xFFFF;
+    return decompress_color16(color);
+}
+
+bool isVoxelType(Voxel voxel, uint type) {
+    return ((voxel.data >> 24) & 0xFF) == (type & 0xFF);
+}
+
+bool isVoxelAir(Voxel voxel) {
+    return isVoxelType(voxel, VOXEL_TYPE_AIR);
+}
+
+bool isVoxelWater(Voxel voxel) {
+    return isVoxelType(voxel, VOXEL_TYPE_WATER);
+}
 
 // -------------------------------------- UTILS --------------------------------------
 bool isValidPos(ivec3 pos) {
@@ -87,17 +133,13 @@ ivec3 stepMask(vec3 sideDist) {
     return ivec3(move);
 }
 
-bool voxelIsAir(Voxel voxel) {
-    return voxel.data == 0;
-}
-
 // -------------------------------------- RAYCASTING --------------------------------------
 bool voxelTraceBrick(vec3 origin, vec3 direction, uint voxel_data_pointer, out uint voxelIndex, inout int step_count, inout vec3 normal, out ivec3 grid_position, out float t) {
-    origin = clamp(origin, vec3(0.0001), vec3(7.9999));
+    origin = clamp(origin, vec3(0.001), vec3(7.999));
     grid_position = ivec3(floor(origin));
 
     ivec3 step_dir   = ivec3(sign(direction));
-    vec3 invAbsDir   = 1.0 / max(abs(direction), vec3(1e-9));
+    vec3 invAbsDir   = 1.0 / max(abs(direction), vec3(1e-4));
     vec3 factor      = step(vec3(0.0), direction);
 
     t = 0.0;
@@ -110,7 +152,7 @@ bool voxelTraceBrick(vec3 origin, vec3 direction, uint voxel_data_pointer, out u
     while (all(greaterThanEqual(grid_position, ivec3(0))) &&
            all(lessThanEqual(grid_position, ivec3(7)))) {
         voxelIndex = voxel_data_pointer + uint(getVoxelIndexInBrick(grid_position));
-        if (voxelData[voxelIndex].data != 0) 
+        if (!isVoxelAir(voxelData[voxelIndex])) 
             return true;
 
         float minT = min(min(tMax.x, tMax.y), tMax.z);
@@ -127,10 +169,12 @@ bool voxelTraceBrick(vec3 origin, vec3 direction, uint voxel_data_pointer, out u
     return false;
 }
 
-bool voxelTraceWorld(vec3 origin, vec3 direction, vec2 range, out float t, out ivec3 grid_position, out vec3 normal, out int step_count) {
+bool voxelTraceWorld(vec3 origin, vec3 direction, vec2 range, out Voxel voxel, out float t, out ivec3 grid_position, out vec3 normal, out int step_count) {
     step_count = 0;
     grid_position = ivec3(0);
     float scale    = voxelWorldProperties.scale * BRICK_EDGE_LENGTH;
+
+    voxel = createAirVoxel();
 
     //ensure ray is in bounds
     vec3 bounds_min = vec3(0.0);
@@ -180,6 +224,7 @@ bool voxelTraceWorld(vec3 origin, vec3 direction, vec2 range, out float t, out i
             if (voxelTraceBrick(pos, direction, brick.voxel_data_pointer * BRICK_VOLUME, voxelIndex, step_count, normal, brick_grid_position, brick_t)) {
                 t += brick_t * scale / BRICK_EDGE_LENGTH;
                 grid_position = grid_position * BRICK_EDGE_LENGTH + brick_grid_position;
+                voxel = voxelData[voxelIndex];
                 return true;
             }
         }
@@ -208,16 +253,9 @@ vec3 sampleSkyColor(vec3 direction) {
     return mix(sky, voxelWorldProperties.sun_color.rgb, sun_intensity);
 }
 
-vec3 blinnPhongShading(vec3 baseColor, vec3 normal, vec3 lightDir, vec3 lightColor, vec3 viewDir) {
-    vec3 ambient = 0.2 * baseColor * sampleSkyColor(reflect(-viewDir, normal));
-    vec3 diffuse = max(dot(normal, lightDir), 0.0) * baseColor;
-    vec3 specular = 0.5 * pow(max(dot(reflect(-lightDir, normal), viewDir), 0.0), 100.0) * lightColor;
-    return ambient + diffuse + specular;
-}
-
 float computeShadow(vec3 position, vec3 normal, vec3 lightDir) {
-    float t; ivec3 grid_position; vec3 normal_out; int step_count;
-    return voxelTraceWorld(position + normal * 0.001, lightDir, vec2(0.0, 100.0), t, grid_position, normal_out, step_count) ? 0.6 : 1.0;
+    float t; ivec3 grid_position; vec3 normal_out; int step_count; Voxel voxel;
+    return voxelTraceWorld(position + normal * 0.001, lightDir, vec2(0.0, 100.0), voxel, t, grid_position, normal_out, step_count) ? 0.6 : 1.0;
 }
 
 #endif // VOXEL_WORLD_GLSL

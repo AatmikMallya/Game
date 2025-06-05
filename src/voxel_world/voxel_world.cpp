@@ -11,11 +11,12 @@ VoxelWorld::VoxelWorld()
 {
     brick_map_size = Vector3i(16, 16, 16);
     scale = 0.125f;
+    _initialized = false;
 }
 
 VoxelWorld::~VoxelWorld()
 {
-    // Cleanup code if necessary.
+
 }
 
 void VoxelWorld::edit_world(const Vector3 &camera_origin, const Vector3 &camera_direction, const float radius,
@@ -28,7 +29,6 @@ void VoxelWorld::edit_world(const Vector3 &camera_origin, const Vector3 &camera_
 
 void VoxelWorld::_bind_methods()
 {
-    // Bind the property accessor methods.
     ClassDB::bind_method(D_METHOD("get_brick_map_size"), &VoxelWorld::get_brick_map_size);
     ClassDB::bind_method(D_METHOD("set_brick_map_size", "brick_map_size"), &VoxelWorld::set_brick_map_size);
     ADD_PROPERTY(PropertyInfo(Variant::VECTOR3I, "brick_map_size"), "set_brick_map_size", "get_brick_map_size");
@@ -107,6 +107,7 @@ void VoxelWorld::init()
     _voxel_properties.set_sky_colors(sky_color, ground_color);
     if (_sun_light != nullptr)
         _voxel_properties.set_sun(_sun_light->get_color(), -_sun_light->get_global_transform().basis.rows[2]);
+    _voxel_properties.frame = 0;
     _rd = RenderingServer::get_singleton()->get_rendering_device();
 
     // create grid buffer
@@ -149,10 +150,18 @@ void VoxelWorld::init()
     {
         _voxel_world_collider->init(_rd, _voxel_bricks_rid, _voxel_data_rid, _voxel_properties_rid, scale);
     }
+    
+    _initialized = true;
 }
 
 void VoxelWorld::update(float delta)
 {
+    if(!_initialized) 
+        return;
+    _voxel_properties.frame++;
+    PackedByteArray properties_data = _voxel_properties.to_packed_byte_array();
+    _rd->buffer_update(_voxel_properties_rid, 0, properties_data.size(), properties_data);
+
     if (simulation_enabled)
     {
         _update_pass->update(delta);
@@ -160,6 +169,6 @@ void VoxelWorld::update(float delta)
 
     if (_voxel_world_collider != nullptr && player_node != nullptr)
     {
-        _voxel_world_collider->update(get_voxel_world_position(player_node->get_position()));
+        _voxel_world_collider->update(get_voxel_world_position(player_node->get_global_position()));
     }
 }

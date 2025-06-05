@@ -23,9 +23,8 @@ sky_color = Color(0.2881, 0.561795, 0.67, 1)
 transform = Transform3D(0.999641, -0.0174314, -0.0203317, 0.017435, 0.999848, 0, 0.0203286, -0.000354483, 0.999793, 0, 0, 0)
 
 [node name="VoxelWorldCollider" type="VoxelWorldCollider" parent="VoxelWorld" node_paths=PackedStringArray("collision_shape")]
-collider_size = Vector3i(64, 32, 64)
+collider_size = Vector3i(16, 32, 16)
 collision_shape = NodePath("StaticBody3D/CollisionShape3D")
-update_interval = 10
 transform = Transform3D(0.999642, 0.017435, 0.0203286, -0.0174314, 0.999848, -0.000354483, -0.0203317, -2.32831e-10, 0.999794, 0, 0, 0)
 
 [node name="StaticBody3D" type="StaticBody3D" parent="VoxelWorld/VoxelWorldCollider"]
@@ -41,7 +40,6 @@ transform = Transform3D(0.63628, 0.354164, -0.685359, 0.013708, 0.883062, 0.4690
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32, 32, 32)
 script = ExtResource("4_j5lb4")
 camera = NodePath("VoxelCamera")
-is_flying = true
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Player"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
@@ -87,7 +85,6 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="DebugLabel" type="Label" parent="Player/VoxelCamera/TextureRect/GUI" node_paths=PackedStringArray("reference_node")]
-layout_mode = 0
 offset_right = 40.0
 offset_bottom = 23.0
 script = ExtResource("2_ytiva")

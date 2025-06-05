@@ -1,6 +1,8 @@
 #ifndef UTILITY_GLSL
 #define UTILITY_GLSL
 
+// --------------------------------------------- COLORS ---------------------------------------------
+
 vec3 rgb2hsv(vec3 c)
 {
     vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
@@ -19,14 +21,14 @@ vec3 hsv2rgb(vec3 c)
     return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
 }
 
-uint compress_color16(vec3 color) {
+uint compress_color16(vec3 rgb) {
     // Convert RGB to HSV
-    vec3 hsv = rgb2hsv(color);
+    vec3 hsv = rgb2hsv(rgb);
     
     // H: 7 bits, S: 4 bits, V: 5 bits
-    uint h = uint(hsv.x * 128.0);
-    uint s = uint(hsv.y * 16.0);
-    uint v = uint(hsv.z * 32.0);
+    uint h = uint(hsv.x * 127.0);
+    uint s = uint(hsv.y * 15.0);
+    uint v = uint(hsv.z * 31.0);
     
     // Pack into a single uint
     return (h << 9) | (s << 5) | v;
@@ -41,6 +43,83 @@ vec3 decompress_color16(uint packedColor) {
     // Convert back to RGB
     vec3 hsv = vec3(float(h) / 128.0, float(s) / 16.0, float(v) / 32.0);
     return hsv2rgb(hsv);
+}
+
+// --------------------------------------------- RNG ---------------------------------------------
+
+vec2 pcg2d(inout uvec2 seed) {
+	// PCG2D, as described here: https://jcgt.org/published/0009/03/02/
+	seed = 1664525u * seed + 1013904223u;
+	seed.x += 1664525u * seed.y;
+	seed.y += 1664525u * seed.x;
+	seed ^= (seed >> 16u);
+	seed.x += 1664525u * seed.y;
+	seed.y += 1664525u * seed.x;
+	seed ^= (seed >> 16u);
+	// Multiply by 2^-32 to get floats
+	return vec2(seed) * 2.32830643654e-10; 
+}
+
+const uint k = 1103515245U;
+uvec3 hash( uvec3 x )
+{
+    // from https://www.shadertoy.com/view/4lXyWN
+    x*=k;
+    return ((x>>2u)^(x.yzx>>1u)^x.zxy)*k;
+}
+
+vec2 box_muller(vec2 rands) {
+    float R = sqrt(-2.0f * log(rands.x));
+    float theta = 6.2831853f * rands.y;
+    return vec2(cos(theta), sin(theta));
+}
+
+float hash(float h) {
+	return fract(sin(h) * 43758.5453123);
+}
+
+float smooth_noise(vec3 x) {
+	vec3 p = floor(x);
+	vec3 f = fract(x);
+	f = f * f * (3.0 - 2.0 * f);
+
+	float n = p.x + p.y * 157.0 + 113.0 * p.z;
+	return mix(
+			mix(mix(hash(n + 0.0), hash(n + 1.0), f.x),
+					mix(hash(n + 157.0), hash(n + 158.0), f.x), f.y),
+			mix(mix(hash(n + 113.0), hash(n + 114.0), f.x),
+					mix(hash(n + 270.0), hash(n + 271.0), f.x), f.y), f.z);
+}
+
+float fbm(vec3 p) {
+	float f = 0.0;
+    float scale = 0.5;
+
+    for (int i = 0; i < 5; ++i) {
+        f += smooth_noise(p) * scale;
+        scale *= 0.5;
+        p *= 2.01;
+    }
+
+	return f;
+}
+
+// --------------------------------------------- MATH ---------------------------------------------
+
+vec4 saturate(vec4 color) {
+    return clamp(color, vec4(0.0), vec4(1.0));
+}
+
+vec3 saturate(vec3 color) {
+    return clamp(color, vec3(0.0), vec3(1.0));
+}
+
+vec2 saturate(vec2 color) {
+    return clamp(color, vec2(0.0), vec2(1.0));
+}
+
+float saturate(float color) {
+    return clamp(color, 0.0, 1.0);
 }
 
 #endif //UTILITY_GLSL

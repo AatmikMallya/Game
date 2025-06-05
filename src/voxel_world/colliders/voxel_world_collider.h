@@ -46,6 +46,9 @@ class VoxelWorldCollider : public Node3D
     Vector3i getColliderSize() const { return _collider_size;}
     void setColliderSize(const Vector3i &size) { _collider_size = size; }
 
+    int getUpdateInterval() const { return _update_interval;}
+    void setUpdateInterval(const int interval) { _update_interval = interval; }
+
     CollisionShape3D *getCollisionShape() const { return _collision_shape; }
     void setCollisionShape(CollisionShape3D *shape) { _collision_shape = shape; }
 

@@ -1,7 +1,9 @@
 #[compute]
 #version 460
 
+#include "../utility.glsl"
 #include "../voxel_world.glsl"
+
 
 layout(std430, set = 1, binding = 0) restrict buffer Params {
     vec4 camera_origin;
@@ -18,12 +20,13 @@ void main() {
     vec3 normal;
     int step_count = 0;
     float t;
+    Voxel voxel;
     
 
     vec3 ray_origin = params.camera_origin.xyz;
     vec3 ray_dir = normalize(params.camera_direction.xyz);
 
-    bool hit = voxelTraceWorld(ray_origin, ray_dir, vec2(params.near, params.far), t, grid_position, normal, step_count);
+    bool hit = voxelTraceWorld(ray_origin, ray_dir, vec2(params.near, params.far), voxel, t, grid_position, normal, step_count);
     if (hit) {
         params.hit_position = ivec4(grid_position, 1);// vec4(ray_origin + t * ray_dir, 1.0);
     } else {

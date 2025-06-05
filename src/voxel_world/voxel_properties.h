@@ -43,6 +43,7 @@ namespace godot
         Vector4 _sun_color;
         Vector4 _sun_direction;
         float scale;
+        unsigned int frame;
 
         PackedByteArray to_packed_byte_array()
         {

@@ -1,6 +1,7 @@
 #[compute]
 #version 460
 
+#include "../utility.glsl"
 #include "../voxel_world.glsl"
 
 layout(std430, set = 1, binding = 0) restrict buffer Params {
@@ -12,7 +13,6 @@ layout(std430, set = 1, binding = 1) restrict buffer Result {
     uint data[];
 } result;
 
-
 uint posToResultIndex(ivec3 pos) {
     return uint(pos.x + pos.y * params.bounds_size.x + pos.z * params.bounds_size.x * params.bounds_size.y);
 }
@@ -23,20 +23,13 @@ void main() {
     if(pos.x >= params.bounds_size.x || pos.y >= params.bounds_size.y || pos.z >= params.bounds_size.z) {
         return; //out of bounds
     }
-
     ivec3 world_pos = params.bounds_min.xyz + pos;
 
     uint index = posToResultIndex(pos);
     uint bit_index = index % 32;
     uint data_index = index / 32;
 
-    // if (!isValidPos(world_pos) || voxelIsAir(voxelData[posToIndex(world_pos)])) {
-    //     result.data[data_index] &= ~(1u << bit_index); //forces the relevant bit to 0
-    // } else {
-    //     result.data[data_index] |= (1u << bit_index); //forces the relevant bit to 1
-    // }
-
-    if (!isValidPos(world_pos) || voxelIsAir(voxelData[posToIndex(world_pos)])) {
+    if (!isValidPos(world_pos) || isVoxelAir(voxelData[posToIndex(world_pos)])) {
         // Use atomicAnd to clear the bit safely
         atomicAnd(result.data[data_index], ~(1u << bit_index));
     } else {

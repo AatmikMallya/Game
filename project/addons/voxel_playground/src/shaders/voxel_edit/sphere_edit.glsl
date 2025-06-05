@@ -1,7 +1,9 @@
 #[compute]
 #version 460
 
+#include "../utility.glsl"
 #include "../voxel_world.glsl"
+
 
 layout(std430, set = 1, binding = 0) restrict buffer Params {
     vec4 camera_origin;

@@ -12,6 +12,7 @@ func _ready() -> void:
 	#get_viewport().debug_draw = Viewport.DEBUG_DRAW_WIREFRAME; 
 
 func _process(delta : float) -> void:
+	return;
 	var _wish_dir_raw = Input.get_vector("move_left", "move_right", "move_forward", "move_backward");
 	var up = Vector3.ZERO;
 	if Input.is_action_pressed("move_up"):

@@ -12,6 +12,12 @@ void VoxelWorldCollider::_bind_methods()
     ClassDB::bind_method(D_METHOD("set_collision_shape", "shape"), &VoxelWorldCollider::setCollisionShape);
     ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "collision_shape", PROPERTY_HINT_NODE_TYPE, "CollisionShape3D"),
                  "set_collision_shape", "get_collision_shape");
+
+
+    ClassDB::bind_method(D_METHOD("get_update_interval"), &VoxelWorldCollider::getUpdateInterval);
+    ClassDB::bind_method(D_METHOD("set_update_interval", "interval"), &VoxelWorldCollider::setUpdateInterval);
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "update_interval", PROPERTY_HINT_RANGE, "1,60,1"),
+                 "set_update_interval", "get_update_interval");
 }
 
 void VoxelWorldCollider::init(RenderingDevice *rd, RID voxel_bricks, RID voxel_data, RID voxel_properties, float scale)
@@ -54,7 +60,7 @@ void VoxelWorldCollider::addQuad(const Vector3 &p1, const int dir, const bool fl
     const static Vector3 offsets[3][4] = {{// YZ plane
                                            Vector3(0, 0, 0), Vector3(0, 1, 0), Vector3(0, 1, 1), Vector3(0, 0, 1)},
                                           {// XZ plane
-                                           Vector3(0, 0, 0), Vector3(1, 0, 0), Vector3(1, 0, 1), Vector3(0, 0, 1)},
+                                           Vector3(0, 0, 0), Vector3(0, 0, 1), Vector3(1, 0, 1), Vector3(1, 0, 0)},
                                           {// XY plane
                                            Vector3(0, 0, 0), Vector3(1, 0, 0), Vector3(1, 1, 0), Vector3(0, 1, 0)}};
     // add triangle

@@ -1,12 +1,12 @@
 #[compute]
 #version 460
 
+#include "utility.glsl"
 #include "voxel_world.glsl"
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 
-// A simple pseudo-random generator based on voxel position.
-// It’s not cryptographically secure but is sufficient for shuffling directions.
+
 uint pseudoRandom(ivec3 pos) {
     uint x = uint(pos.x) * 73856093u;
     uint y = uint(pos.y) * 19349663u;
