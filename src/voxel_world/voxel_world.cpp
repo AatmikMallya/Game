@@ -114,7 +114,7 @@ void VoxelWorld::init()
     PackedByteArray voxel_bricks;
     int brick_count = brick_map_size.x * brick_map_size.y * brick_map_size.z;
     voxel_bricks.resize(brick_count * sizeof(Brick));
-    _voxel_bricks_rid = _rd->storage_buffer_create(voxel_bricks.size(), voxel_bricks);
+    _voxel_world_rids.voxel_bricks = _rd->storage_buffer_create(voxel_bricks.size(), voxel_bricks);
 
     // Create the voxel data buffer.
     PackedByteArray voxel_data;
@@ -126,29 +126,28 @@ void VoxelWorld::init()
         return;
     }
     voxel_data.resize(voxel_count * sizeof(Voxel));
-    _voxel_data_rid = _rd->storage_buffer_create(voxel_data.size(), voxel_data);
+    _voxel_world_rids.voxel_data = _rd->storage_buffer_create(voxel_data.size(), voxel_data);
+    _voxel_world_rids.voxel_data2 = _rd->storage_buffer_create(voxel_data.size(), voxel_data); //create a second to facilitate ping-pong buffers
 
     // Create the voxel properties buffer.
     PackedByteArray properties_data = _voxel_properties.to_packed_byte_array();
-    _voxel_properties_rid = _rd->storage_buffer_create(properties_data.size(), properties_data);
+    _voxel_world_rids.properties = _rd->storage_buffer_create(properties_data.size(), properties_data);
 
     // // Create the voxel world generator.
     VoxelWorldGenerator generator;
-    generator.initialize_brick_grid(_rd, _voxel_bricks_rid, _voxel_data_rid, _voxel_properties_rid, brick_map_size);
-    generator.populate(_rd, _voxel_bricks_rid, _voxel_data_rid, _voxel_properties_rid, size);
+    generator.initialize_brick_grid(_rd, _voxel_world_rids, brick_map_size);
+    generator.populate(_rd, _voxel_world_rids, size);
 
     // Create the update pass.
-    _update_pass = new VoxelWorldUpdatePass("res://addons/voxel_playground/src/shaders/automata.glsl", _rd,
-                                            _voxel_bricks_rid, _voxel_data_rid, _voxel_properties_rid, size);
+    _update_pass = new VoxelWorldUpdatePass("res://addons/voxel_playground/src/shaders/automata/liquid.glsl", _rd, _voxel_world_rids, size);
 
     // Create the edit pass.
-    _edit_pass = new VoxelEditPass("res://addons/voxel_playground/src/shaders/voxel_edit/sphere_edit.glsl", _rd,
-                                   _voxel_bricks_rid, _voxel_data_rid, _voxel_properties_rid, size);
+    _edit_pass = new VoxelEditPass("res://addons/voxel_playground/src/shaders/voxel_edit/sphere_edit.glsl", _rd, _voxel_world_rids, size);
 
     // if collider set, initialize it
     if (_voxel_world_collider != nullptr)
     {
-        _voxel_world_collider->init(_rd, _voxel_bricks_rid, _voxel_data_rid, _voxel_properties_rid, scale);
+        _voxel_world_collider->init(_rd, _voxel_world_rids, scale);
     }
     
     _initialized = true;
@@ -160,7 +159,7 @@ void VoxelWorld::update(float delta)
         return;
     _voxel_properties.frame++;
     PackedByteArray properties_data = _voxel_properties.to_packed_byte_array();
-    _rd->buffer_update(_voxel_properties_rid, 0, properties_data.size(), properties_data);
+    _rd->buffer_update(_voxel_world_rids.properties, 0, properties_data.size(), properties_data);
 
     if (simulation_enabled)
     {

@@ -8,7 +8,7 @@
 #define BRICK_VOLUME 512 
 
 struct Brick { // we may add color to this for simple LOD
-    int occupancy_count;      // amount of voxels in the brick; 0 means the brick is empty
+    uint occupancy_count;      // mask for voxels in the brick; 0 means the brick is empty
     uint voxel_data_pointer;  // index of the first voxel in the brick (voxels stored in Morton order)
 };
 
@@ -16,15 +16,7 @@ struct Voxel {
     uint data;
 };
 
-layout(std430, set = 0, binding = 0) buffer VoxelWorldBricks {
-    Brick voxelBricks[];
-};
-
-layout(std430, set = 0, binding = 1) buffer VoxelWorldData {
-    Voxel voxelData[];
-};
-
-layout(std430, set = 0, binding = 2) buffer VoxelWorldProperties {
+layout(std430, set = 0, binding = 0) buffer VoxelWorldProperties {
     ivec4 grid_size;
     ivec4 brick_grid_size;
     vec4 sky_color;
@@ -35,6 +27,20 @@ layout(std430, set = 0, binding = 2) buffer VoxelWorldProperties {
     int frame;
 } voxelWorldProperties;
 
+layout(std430, set = 0, binding = 1) buffer VoxelWorldBricks {
+    Brick voxelBricks[];
+};
+
+layout(std430, set = 0, binding = 2) buffer VoxelWorldData {
+    Voxel voxelData[];
+};
+
+layout(std430, set = 0, binding = 3) buffer VoxelWorldData2 {
+    Voxel voxelData2[];
+};
+
+
+
 // -------------------------------------- VOXEL DATA --------------------------------------
 
 const uint VOXEL_TYPE_AIR = 0;
@@ -42,6 +48,7 @@ const uint VOXEL_TYPE_SOLID = 1;
 const uint VOXEL_TYPE_WATER = 2;
 const uint VOXEL_TYPE_LAVA = 3;
 const vec3 DEFAULT_WATER_COLOR = vec3(0.1, 0.3, 0.8);
+const vec3 DEFAULT_LAVA_COLOR = vec3(4.0, 0.6, 0.1);
 
 Voxel createVoxel(uint type, vec3 color) {
     Voxel voxel;
@@ -56,29 +63,95 @@ Voxel createAirVoxel() {
 
 Voxel createWaterVoxel() {
     Voxel voxel = createVoxel(VOXEL_TYPE_WATER, DEFAULT_WATER_COLOR);
-    voxel.data |= 127;
+    // voxel.data |= 127;
     return voxel;
 }
 
+Voxel createLavaVoxel() {
+    Voxel voxel = createVoxel(VOXEL_TYPE_LAVA, DEFAULT_LAVA_COLOR);
+    // voxel.data |= 127;
+    return voxel;
+}
 
-vec3 getVoxelColor(Voxel voxel) {
-    uint color = (voxel.data >> 8) & 0xFFFF;
-    return decompress_color16(color);
+Voxel createGrassVoxel(ivec3 pos) {
+   vec3 color = randomizedColor(vec3(.2, .9, .45), pos);    
+    return createVoxel(VOXEL_TYPE_SOLID, color);
+}
+
+
+Voxel createRockVoxel(ivec3 pos) {
+    vec3 color = randomizedColor(vec3(.24, .25, .32), pos);
+    return createVoxel(VOXEL_TYPE_SOLID, color);
 }
 
 bool isVoxelType(Voxel voxel, uint type) {
     return ((voxel.data >> 24) & 0xFF) == (type & 0xFF);
 }
 
+bool equalsVoxelType(Voxel a, Voxel b) {
+    return ((a.data >> 24) & 0xFF) == ((b.data >> 24) & 0xFF);
+}
+
 bool isVoxelAir(Voxel voxel) {
     return isVoxelType(voxel, VOXEL_TYPE_AIR);
 }
 
-bool isVoxelWater(Voxel voxel) {
-    return isVoxelType(voxel, VOXEL_TYPE_WATER);
+bool isVoxelLiquid(Voxel voxel) {
+    return isVoxelType(voxel, VOXEL_TYPE_WATER) || isVoxelType(voxel, VOXEL_TYPE_LAVA);
+}
+
+bool isVoxelSolid(Voxel voxel) {
+    return !isVoxelType(voxel, VOXEL_TYPE_AIR) && !isVoxelLiquid(voxel);
+}
+
+bool isVoxelDynamic(Voxel voxel) {
+    return isVoxelLiquid(voxel);
+}
+
+vec3 getVoxelColor(Voxel voxel) {
+    uint color = (voxel.data >> 8) & 0xFFFF;
+    return decompress_color16(color);
+}
+
+//0 is base value
+float getVoxelEmission(Voxel voxel) {
+     return isVoxelType(voxel, VOXEL_TYPE_LAVA) ? 1 : 0;
+}
+
+Voxel getPreviousVoxel(uint index)
+{
+    return voxelWorldProperties.frame % 2 == 0 ? voxelData2[index] : voxelData[index];
+}
+
+Voxel getVoxel(uint index)
+{
+    return voxelWorldProperties.frame % 2 == 0 ? voxelData[index] : voxelData2[index];
+}
+
+void setVoxel(uint index, Voxel voxel) {
+    if (voxelWorldProperties.frame % 2 == 0)
+        voxelData[index] = voxel;
+    else 
+        voxelData2[index] = voxel;    
+}
+
+void setPreviousVoxel(uint index, Voxel voxel) {
+    if (voxelWorldProperties.frame % 2 == 0)
+        voxelData2[index] = voxel;
+    else 
+        voxelData[index] = voxel;    
+}
+
+
+void setBothVoxelBuffers(uint index, Voxel voxel)
+{
+    voxelData[index] = voxel;
+    voxelData2[index] = voxel;
 }
 
 // -------------------------------------- UTILS --------------------------------------
+
+
 bool isValidPos(ivec3 pos) {
     return pos.x >= 0 && pos.x < voxelWorldProperties.grid_size.x &&
            pos.y >= 0 && pos.y < voxelWorldProperties.grid_size.y &&
@@ -121,17 +194,15 @@ ivec3 worldToGrid(vec3 pos) {
     return ivec3(pos / voxelWorldProperties.scale);
 }
 
-ivec3 stepMask(vec3 sideDist) {
-    // Yoinked from https://www.shadertoy.com/view/l33XWf
-    bvec3 move;
-    bvec3 pon=lessThan(sideDist.xyz,sideDist.yzx);
-
-    move.x=pon.x && !pon.z;
-    move.y=pon.y && !pon.x;
-    move.z=!(move.x||move.y);
-
-    return ivec3(move);
-}
+// ivec3 stepMask(vec3 sideDist) {
+//     // Yoinked from https://www.shadertoy.com/view/l33XWf
+//     bvec3 move;
+//     bvec3 pon=lessThan(sideDist.xyz,sideDist.yzx);
+//     move.x=pon.x && !pon.z;
+//     move.y=pon.y && !pon.x;
+//     move.z=!(move.x||move.y);
+//     return ivec3(move);
+// }
 
 // -------------------------------------- RAYCASTING --------------------------------------
 bool voxelTraceBrick(vec3 origin, vec3 direction, uint voxel_data_pointer, out uint voxelIndex, inout int step_count, inout vec3 normal, out ivec3 grid_position, out float t) {
@@ -152,7 +223,7 @@ bool voxelTraceBrick(vec3 origin, vec3 direction, uint voxel_data_pointer, out u
     while (all(greaterThanEqual(grid_position, ivec3(0))) &&
            all(lessThanEqual(grid_position, ivec3(7)))) {
         voxelIndex = voxel_data_pointer + uint(getVoxelIndexInBrick(grid_position));
-        if (!isVoxelAir(voxelData[voxelIndex])) 
+        if (!isVoxelAir(getVoxel(voxelIndex))) 
             return true;
 
         float minT = min(min(tMax.x, tMax.y), tMax.z);
@@ -224,7 +295,7 @@ bool voxelTraceWorld(vec3 origin, vec3 direction, vec2 range, out Voxel voxel, o
             if (voxelTraceBrick(pos, direction, brick.voxel_data_pointer * BRICK_VOLUME, voxelIndex, step_count, normal, brick_grid_position, brick_t)) {
                 t += brick_t * scale / BRICK_EDGE_LENGTH;
                 grid_position = grid_position * BRICK_EDGE_LENGTH + brick_grid_position;
-                voxel = voxelData[voxelIndex];
+                voxel = getVoxel(voxelIndex);
                 return true;
             }
         }

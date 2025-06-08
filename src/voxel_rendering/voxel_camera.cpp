@@ -107,12 +107,8 @@ void VoxelCamera::init()
     // setup compute shader
     cs = new ComputeShader("res://addons/voxel_playground/src/shaders/voxel_renderer.glsl", _rd, {"#define TESTe"});
 
-    //--------- Voxel BUFFERS ---------
-    {
-        cs->add_existing_buffer(voxel_world->get_voxel_bricks_rid(), RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 0, 0);
-        cs->add_existing_buffer(voxel_world->get_voxel_data_rid(), RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 1, 0);
-        cs->add_existing_buffer(voxel_world->get_voxel_properties_rid(), RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 2, 0);
-    }
+    //--------- Voxel BUFFERS ---------    
+    voxel_world->get_voxel_world_rids().add_voxel_buffers(cs);    
 
     //--------- GENERAL BUFFERS ---------
     { // input general buffer

@@ -54,7 +54,14 @@ namespace godot
         }
     };
 
-    void add_voxel_buffers(ComputeShader* shader, const RID &voxel_bricks, const RID &voxel_data, const RID &properties);
+    struct VoxelWorldRIDs {
+        RID properties;
+        RID voxel_bricks;
+        RID voxel_data;
+        RID voxel_data2;
+
+        void add_voxel_buffers(ComputeShader* shader);
+    };
 }
 
 #endif // VOXEL_WORLD_PROPERTIES_H

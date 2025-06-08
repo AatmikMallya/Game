@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3 uid="uid://s8dmi2g1hu2t"]
+[gd_scene load_steps=8 format=3 uid="uid://s8dmi2g1hu2t"]
 
 [ext_resource type="Script" uid="uid://bx00fnhlbwhlh" path="res://demo/world_editor.gd" id="2_dar0o"]
 [ext_resource type="Script" uid="uid://ojind5ypwi07" path="res://demo/auxiliary/fps_meter.gd" id="2_ytiva"]
@@ -11,7 +11,13 @@ height = 1.8
 
 [sub_resource type="ImageTexture" id="ImageTexture_5hjng"]
 
-[node name="Node3D" type="Node3D"]
+[sub_resource type="Environment" id="Environment_dar0o"]
+background_mode = 3
+tonemap_mode = 3
+glow_enabled = true
+glow_blend_mode = 0
+
+[node name="World" type="Node3D"]
 
 [node name="VoxelWorld" type="VoxelWorld" parent="." node_paths=PackedStringArray("voxel_world_collider", "player_node", "sun_light")]
 brick_map_size = Vector3i(64, 32, 64)
@@ -92,3 +98,6 @@ offset_right = 40.0
 offset_bottom = 23.0
 script = ExtResource("2_ytiva")
 reference_node = NodePath("../../..")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_dar0o")

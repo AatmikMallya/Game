@@ -35,7 +35,7 @@ class VoxelWorldCollider : public Node3D
     static void _bind_methods();
 
   public:
-    void init(RenderingDevice *rd, RID voxel_bricks, RID voxel_data, RID voxel_properties, float scale);
+    void init(RenderingDevice *rd, VoxelWorldRIDs& voxel_world_rids, float scale);
     void addQuad(const Vector3 &p1, const int dir, const bool flip);
     void onDataFetched(const PackedByteArray &data);
     VoxelWorldCollider() {};

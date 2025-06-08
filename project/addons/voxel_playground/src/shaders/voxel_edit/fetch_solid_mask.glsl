@@ -29,11 +29,10 @@ void main() {
     uint bit_index = index % 32;
     uint data_index = index / 32;
 
-    if (!isValidPos(world_pos) || isVoxelAir(voxelData[posToIndex(world_pos)])) {
-        // Use atomicAnd to clear the bit safely
+    if (!isValidPos(world_pos) || !isVoxelSolid(voxelData[posToIndex(world_pos)])) {
         atomicAnd(result.data[data_index], ~(1u << bit_index));
     } else {
-        // Use atomicOr to set the bit safely
         atomicOr(result.data[data_index], 1u << bit_index);
     }
+
 }

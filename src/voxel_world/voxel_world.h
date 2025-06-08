@@ -29,9 +29,10 @@ private:
     bool simulation_enabled = true;
     bool _initialized;
 
-    RID _voxel_data_rid;
-    RID _voxel_bricks_rid;
-    RID _voxel_properties_rid;
+    // RID _voxel_data_rid;
+    // RID _voxel_bricks_rid;
+    // RID _voxel_properties_rid;
+    VoxelWorldRIDs _voxel_world_rids;
     VoxelWorldProperties _voxel_properties;
     RenderingDevice* _rd;
     Node3D* player_node = nullptr;
@@ -39,7 +40,6 @@ private:
     VoxelWorldUpdatePass* _update_pass = nullptr;
     VoxelEditPass* _edit_pass = nullptr;
     VoxelWorldCollider* _voxel_world_collider = nullptr;
-
 
     DirectionalLight3D* _sun_light = nullptr;
     Color ground_color = Color(0.5, 0.3, 0.15, 1.0);
@@ -82,9 +82,7 @@ public:
 
     void edit_world(const Vector3 &camera_origin, const Vector3 &camera_direction, const float radius, const float range, const int value);
 
-    RID get_voxel_data_rid() const { return _voxel_data_rid; }
-    RID get_voxel_bricks_rid() const { return _voxel_bricks_rid; }
-    RID get_voxel_properties_rid() const { return _voxel_properties_rid; }
+    VoxelWorldRIDs get_voxel_world_rids() const { return _voxel_world_rids; }
     VoxelWorldProperties get_voxel_properties() const { return _voxel_properties; }
     
 };

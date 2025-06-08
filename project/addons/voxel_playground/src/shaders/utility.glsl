@@ -1,6 +1,24 @@
 #ifndef UTILITY_GLSL
 #define UTILITY_GLSL
 
+// --------------------------------------------- MATH ---------------------------------------------
+
+vec4 saturate(vec4 color) {
+    return clamp(color, vec4(0.0), vec4(1.0));
+}
+
+vec3 saturate(vec3 color) {
+    return clamp(color, vec3(0.0), vec3(1.0));
+}
+
+vec2 saturate(vec2 color) {
+    return clamp(color, vec2(0.0), vec2(1.0));
+}
+
+float saturate(float color) {
+    return clamp(color, 0.0, 1.0);
+}
+
 // --------------------------------------------- COLORS ---------------------------------------------
 
 vec3 rgb2hsv(vec3 c)
@@ -48,7 +66,7 @@ vec3 decompress_color16(uint packedColor) {
 // --------------------------------------------- RNG ---------------------------------------------
 
 vec2 pcg2d(inout uvec2 seed) {
-	// PCG2D, as described here: https://jcgt.org/published/0009/03/02/
+	// PCG2D from https://jcgt.org/published/0009/03/02/
 	seed = 1664525u * seed + 1013904223u;
 	seed.x += 1664525u * seed.y;
 	seed.y += 1664525u * seed.x;
@@ -56,17 +74,36 @@ vec2 pcg2d(inout uvec2 seed) {
 	seed.x += 1664525u * seed.y;
 	seed.y += 1664525u * seed.x;
 	seed ^= (seed >> 16u);
-	// Multiply by 2^-32 to get floats
 	return vec2(seed) * 2.32830643654e-10; 
 }
 
-const uint k = 1103515245U;
-uvec3 hash( uvec3 x )
-{
-    // from https://www.shadertoy.com/view/4lXyWN
-    x*=k;
-    return ((x>>2u)^(x.yzx>>1u)^x.zxy)*k;
+uint hash(uint x) {
+    x ^= x >> 16u;
+    x *= 0x45d9f3bu;
+    x ^= x >> 16u;
+    x *= 0x45d9f3bu;
+    x ^= x >> 16u;
+    return x;
 }
+
+uvec2 hash(uvec2 x) {
+    const uint k = 1103515245u;
+    x *= k;
+    return ((x >> 2u) ^ (x.yx >> 1u)) * k;
+}
+
+uvec3 hash(uvec3 x) {
+    const uint k = 1103515245u;
+    x *= k;
+    return ((x >> 2u) ^ (x.yzx >> 1u) ^ (x.zxy)) * k;
+}
+
+uvec4 hash(uvec4 x) {
+    const uint k = 1103515245u;
+    x *= k;
+    return ((x >> 2u) ^ (x.yzwx >> 1u) ^ (x.zwxy >> 3u) ^ (x.wxyz >> 4u)) * k;
+}
+
 
 vec2 box_muller(vec2 rands) {
     float R = sqrt(-2.0f * log(rands.x));
@@ -104,22 +141,14 @@ float fbm(vec3 p) {
 	return f;
 }
 
-// --------------------------------------------- MATH ---------------------------------------------
-
-vec4 saturate(vec4 color) {
-    return clamp(color, vec4(0.0), vec4(1.0));
+vec3 randomizedColor(vec3 base_color, ivec3 pos) {
+    uvec3 hash_value = hash(pos);
+    vec2 rn = pcg2d(hash_value.xy);
+    vec3 color = rgb2hsv(base_color);
+    color.x += rn.x * 0.025;
+    color.yz *= 0.9 + rn.y * 0.2;
+    return saturate(hsv2rgb(color));
 }
 
-vec3 saturate(vec3 color) {
-    return clamp(color, vec3(0.0), vec3(1.0));
-}
-
-vec2 saturate(vec2 color) {
-    return clamp(color, vec2(0.0), vec2(1.0));
-}
-
-float saturate(float color) {
-    return clamp(color, 0.0, 1.0);
-}
 
 #endif //UTILITY_GLSL

@@ -4,7 +4,6 @@
 #include "../utility.glsl"
 #include "../voxel_world.glsl"
 
-
 layout(std430, set = 1, binding = 0) restrict buffer Params {
     vec4 camera_origin;
     vec4 camera_direction;
@@ -27,14 +26,22 @@ void main() {
     // vec3 center = vec3(0);
     float d = length(vec3(world_pos) - center);
 
+
     // Set the voxel data based on the distance
     if (d < params.radius) { // Inside the sphere
         uint brick_index = getBrickIndex(world_pos);
         uint voxel_index = voxelBricks[brick_index].voxel_data_pointer * BRICK_VOLUME + getVoxelIndexInBrick(world_pos);     
+        bool isAir = isVoxelAir(getVoxel(voxel_index));
 
-        if (voxelData[voxel_index].data == 1) return;
+        Voxel voxel = createAirVoxel();
+        if(params.value == 1)
+            voxel = createRockVoxel(world_pos);
+        if (params.value == 2)
+            voxel = createWaterVoxel();
+        if (params.value == 3)
+            voxel = createLavaVoxel();
 
-        atomicAdd(voxelBricks[brick_index].occupancy_count, 1);
-        voxelData[voxel_index].data = params.value; 
+        if(isAir ^^ isVoxelAir(voxel))
+            setBothVoxelBuffers(voxel_index, voxel);
     }
 }

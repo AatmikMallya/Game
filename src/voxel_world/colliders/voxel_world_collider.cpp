@@ -20,7 +20,7 @@ void VoxelWorldCollider::_bind_methods()
                  "set_update_interval", "get_update_interval");
 }
 
-void VoxelWorldCollider::init(RenderingDevice *rd, RID voxel_bricks, RID voxel_data, RID voxel_properties, float scale)
+void VoxelWorldCollider::init(RenderingDevice *rd, VoxelWorldRIDs& voxel_world_rids, float scale)
 {
     this->scale = scale;
     if (_collision_shape == nullptr)
@@ -45,7 +45,7 @@ void VoxelWorldCollider::init(RenderingDevice *rd, RID voxel_bricks, RID voxel_d
 
     _fetch_data_shader =
         new ComputeShader("res://addons/voxel_playground/src/shaders/voxel_edit/fetch_solid_mask.glsl", rd);
-    add_voxel_buffers(_fetch_data_shader, voxel_bricks, voxel_data, voxel_properties);
+        voxel_world_rids.add_voxel_buffers(_fetch_data_shader);
     _collider_params_rid =
         _fetch_data_shader->create_storage_buffer_uniform(_collider_params.to_packed_byte_array(), 0, 1);
     _collider_voxel_data_rid = _fetch_data_shader->create_storage_buffer_uniform(collider_voxel_data, 1, 1);

@@ -34,11 +34,11 @@ class VoxelEditPass
     };
 
   public:
-    VoxelEditPass(String edit_shader_path, RenderingDevice *rd, RID voxel_bricks, RID voxel_data, RID properties,
-                  const Vector3i size);
+    VoxelEditPass(String edit_shader_path, RenderingDevice *rd, VoxelWorldRIDs &voxel_world_rids, const Vector3i size);
     ~VoxelEditPass() {};
 
-    void edit_using_raycast(const Vector3 &camera_origin, const Vector3 &camera_direction, const float radius, const float range, const int value);
+    void edit_using_raycast(const Vector3 &camera_origin, const Vector3 &camera_direction, const float radius,
+                            const float range, const int value);
     void edit_at(const Vector3 &position, const float radius, const int value);
 
   private:

@@ -16,13 +16,15 @@ class VoxelWorldUpdatePass
 {
 
   public:
-    VoxelWorldUpdatePass(String shader_path, RenderingDevice *rd, RID voxel_bricks, RID voxel_data, RID properties, const Vector3i size);
+    VoxelWorldUpdatePass(String shader_path, RenderingDevice *rd, VoxelWorldRIDs& voxel_world_rids, const Vector3i size);
     ~VoxelWorldUpdatePass() {};
 
     void update(float delta);
 
   private:
-    ComputeShader *compute_shader = nullptr;
+    ComputeShader *automata_cs_1 = nullptr;
+    ComputeShader *automata_cs_2 = nullptr;
+    ComputeShader *cleanup_shader = nullptr;
     Vector3i _size;
 };
 

@@ -11,7 +11,6 @@ void main() {
     if (pos.x >= voxelWorldProperties.brick_grid_size.x || pos.y >= voxelWorldProperties.brick_grid_size.y || pos.z >= voxelWorldProperties.brick_grid_size.z) return;
 
     int brick_index = pos.x + pos.y * voxelWorldProperties.brick_grid_size.x + pos.z * voxelWorldProperties.brick_grid_size.x * voxelWorldProperties.brick_grid_size.y;
-
     voxelBricks[brick_index].voxel_data_pointer = brick_index;
     voxelBricks[brick_index].occupancy_count = 0;
 }

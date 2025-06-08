@@ -35,22 +35,6 @@ layout(std430, set = 1, binding = 3) restrict buffer Camera {
 
 // ----------------------------------- FUNCTIONS -----------------------------------
 
-vec3 sampleMiddleSlice(vec2 screen_uv) {
-    int x = int(floor(screen_uv.x * float(voxelWorldProperties.grid_size.x)));
-    int y = int(floor(screen_uv.y * float(voxelWorldProperties.grid_size.y)));
-    int z = voxelWorldProperties.grid_size.z / 4;
-    
-    x = clamp(x, 0, voxelWorldProperties.grid_size.x - 1);
-    y = clamp(y, 0, voxelWorldProperties.grid_size.y - 1);
-    z = clamp(z, 0, voxelWorldProperties.grid_size.z - 1);
-    
-    uint index = posToIndex(ivec3(x, y, z));
-
-    uint voxelValue = voxelData[index].data;    
-    float intensity = float(voxelValue);    
-    return vec3(intensity);
-}
-
 vec3 blinnPhongShading(vec3 baseColor, vec3 normal, vec3 lightDir, vec3 lightColor, vec3 viewDir) {
     // return baseColor;
     vec3 diffuse = max(dot(normal, lightDir), 0.0) * baseColor;
@@ -93,25 +77,26 @@ void main() {
         vec3 baseColor = vec3(grid_position) / voxelWorldProperties.grid_size.xyz;
         // color = hsv2rgb(rgb2hsv(baseColor));
         // voxel.data = ~0;
-        color = getVoxelColor(voxel);
-
+        float emission = getVoxelEmission(voxel);
+        color = getVoxelColor(voxel) * (1 + emission);
 
         color *= 0.05 * dot(normal, vec3(0.25, 0.35, 0.4)) + 0.95; //discolor different faces slightly.
-
         vec3 voxel_view_dir = normalize(camera.position.xyz - voxel_pos);
 
         // direct illumination
-        float shadow = computeShadow(hitPos, normal, voxelWorldProperties.sun_direction.xyz);
-        // color = blinnPhongShading(color, normal, voxelWorldProperties.sun_direction.xyz, voxelWorldProperties.sun_color.rgb, voxel_view_dir);
-        color *= shadow;
-
+        if(emission < 1) {
+            float shadow = computeShadow(hitPos, normal, voxelWorldProperties.sun_direction.xyz);
+            color = blinnPhongShading(color, normal, voxelWorldProperties.sun_direction.xyz, voxelWorldProperties.sun_color.rgb, voxel_view_dir);
+            color *= shadow;
+        }
     } else {
         color = sampleSkyColor(ray_dir);
     }
-
-    // color = sampleMiddleSlice(screen_uv);
-
     // depth = camera.far / (camera.far - camera.near) * (1.0 - camera.near / depth);
+
+    //visualize steps
+    // color = vec3(step_count * 0.001);
+
     float depth = 0.0f;
     imageStore(outputImage, pos, vec4(color, 1.0));
     imageStore(depthBuffer, pos, vec4(depth, 0.0, 0.0, 0.0));

@@ -5,12 +5,9 @@
 using namespace godot;
 
 
-void VoxelWorldGenerator::initialize_brick_grid(RenderingDevice* rd, RID voxel_bricks, RID voxel_data, RID properties, const Vector3i brick_grid_size) {
+void VoxelWorldGenerator::initialize_brick_grid(RenderingDevice* rd, VoxelWorldRIDs voxel_world_rids, const Vector3i brick_grid_size) {
     compute_shader = new ComputeShader("res://addons/voxel_playground/src/shaders/generators/initialize_brick_grid.glsl", rd);
-
-    compute_shader->add_existing_buffer(voxel_bricks, RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 0, 0);
-    compute_shader->add_existing_buffer(voxel_data, RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 1, 0);
-    compute_shader->add_existing_buffer(properties, RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 2, 0);
+    voxel_world_rids.add_voxel_buffers(compute_shader);
     compute_shader->finish_create_uniforms();
     
     const Vector3 group_size = Vector3(8, 8, 8);
@@ -18,13 +15,11 @@ void VoxelWorldGenerator::initialize_brick_grid(RenderingDevice* rd, RID voxel_b
     compute_shader->compute(group_count, false);
 }
 
-void VoxelWorldGenerator::populate(RenderingDevice* rd, RID voxel_bricks, RID voxel_data, RID properties, const Vector3i size)
+void VoxelWorldGenerator::populate(RenderingDevice* rd, VoxelWorldRIDs voxel_world_rids, const Vector3i size)
 {
     compute_shader = new ComputeShader("res://addons/voxel_playground/src/shaders/generators/floating_island.glsl", rd);
 
-    compute_shader->add_existing_buffer(voxel_bricks, RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 0, 0);
-    compute_shader->add_existing_buffer(voxel_data, RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 1, 0);
-    compute_shader->add_existing_buffer(properties, RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 2, 0);
+    voxel_world_rids.add_voxel_buffers(compute_shader);
     compute_shader->finish_create_uniforms();
     
     const Vector3 group_size = Vector3(8, 8, 8);
