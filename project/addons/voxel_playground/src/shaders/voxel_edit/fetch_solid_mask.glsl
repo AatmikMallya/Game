@@ -29,7 +29,9 @@ void main() {
     uint bit_index = index % 32;
     uint data_index = index / 32;
 
-    if (!isValidPos(world_pos) || !isVoxelSolid(voxelData[posToIndex(world_pos)])) {
+    Voxel voxel_value = getVoxel(posToIndex(world_pos));
+
+    if (!isValidPos(world_pos) || !isVoxelSolid(voxel_value)) {
         atomicAnd(result.data[data_index], ~(1u << bit_index));
     } else {
         atomicOr(result.data[data_index], 1u << bit_index);

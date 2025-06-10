@@ -69,7 +69,6 @@ void main() {
 
     Voxel voxel;
 
-
     if (voxelTraceWorld(ray_origin, ray_dir, vec2(camera.near, camera.far), voxel, t, grid_position, normal, step_count)) {
         vec3 hitPos = ray_origin + t * ray_dir;
         normal = normalize(normal);
@@ -78,8 +77,12 @@ void main() {
         // color = hsv2rgb(rgb2hsv(baseColor));
         // voxel.data = ~0;
         float emission = getVoxelEmission(voxel);
-        color = getVoxelColor(voxel) * (1 + emission);
-
+        color = getVoxelColor(voxel, grid_position) * (1 + emission);
+        if(isVoxelLiquid(voxel))
+        {
+            color += vec3(0.05 * sin(0.0167 * voxelWorldProperties.frame + 0.2 * (grid_position.x + grid_position.y + grid_position.z)));
+            color += vec3(((voxel.data & 0xFu) > 0) ? 0.5 : 0);
+        }
         color *= 0.05 * dot(normal, vec3(0.25, 0.35, 0.4)) + 0.95; //discolor different faces slightly.
         vec3 voxel_view_dir = normalize(camera.position.xyz - voxel_pos);
 

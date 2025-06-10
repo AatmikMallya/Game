@@ -12,9 +12,8 @@ void main() {
     ivec3 pos = ivec3(gl_GlobalInvocationID.xyz) * ivec3(2, 4, 2);
     
     uint brick_index = getBrickIndex(pos);
-    uint id = gl_LocalInvocationIndex;  
-    
-    bool occupied = false;
+    uint id = gl_LocalInvocationIndex;      
+    uint occupied = 0;
     
     for (int x = 0; x < 2; ++x) {
         for (int y = 0; y < 4; ++y) {
@@ -29,21 +28,20 @@ void main() {
                     setPreviousVoxel(voxel_index, createAirVoxel());
                 }
                 
-                occupied = occupied || !isVoxelAir(getVoxel(voxel_index));
+                occupied += isVoxelAir(getVoxel(voxel_index)) ? 0 : 1;
             }
         }
-    }
-    
+    }  
 
-    localOccupancy[id] = occupied ? (1u << id) : 0u;
+    localOccupancy[id] = occupied;
     barrier();
     
     if (id == 0u) {
-        uint occupancyMask = 0u;
+        uint count = 0;
         for (uint i = 0u; i < 32u; ++i) {
-            occupancyMask |= localOccupancy[i];
+            count += localOccupancy[i];
         }
 
-        voxelBricks[brick_index].occupancy_count = occupancyMask;
+        voxelBricks[brick_index].occupancy_count = count;
     }
 }

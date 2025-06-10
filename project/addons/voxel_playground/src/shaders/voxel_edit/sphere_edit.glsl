@@ -18,17 +18,12 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 void main() {
     ivec3 pos = ivec3(gl_GlobalInvocationID.xyz);
     ivec3 world_pos = ivec3(params.hit_position.xyz) + pos - ivec3(params.radius);
-    // ivec3 world_pos = pos;
     if (!isValidPos(world_pos) || params.hit_position.w < 0) return;
 
-    // Calculate the distance from the center of the sphere
     vec3 center = params.hit_position.xyz;
-    // vec3 center = vec3(0);
     float d = length(vec3(world_pos) - center);
 
-
-    // Set the voxel data based on the distance
-    if (d < params.radius) { // Inside the sphere
+    if (d < params.radius) {
         uint brick_index = getBrickIndex(world_pos);
         uint voxel_index = voxelBricks[brick_index].voxel_data_pointer * BRICK_VOLUME + getVoxelIndexInBrick(world_pos);     
         bool isAir = isVoxelAir(getVoxel(voxel_index));
@@ -36,10 +31,12 @@ void main() {
         Voxel voxel = createAirVoxel();
         if(params.value == 1)
             voxel = createRockVoxel(world_pos);
-        if (params.value == 2)
-            voxel = createWaterVoxel();
+        if(params.value == 2)
+            voxel = createSandVoxel(world_pos);
         if (params.value == 3)
-            voxel = createLavaVoxel();
+            voxel = createWaterVoxel(world_pos);
+        if (params.value == 4)
+            voxel = createLavaVoxel(world_pos);
 
         if(isAir ^^ isVoxelAir(voxel))
             setBothVoxelBuffers(voxel_index, voxel);

@@ -39,7 +39,6 @@ void main() {
     uint brick_index = getBrickIndex(pos);
     uint voxel_index = voxelBricks[brick_index].voxel_data_pointer * BRICK_VOLUME + getVoxelIndexInBrick(pos);     
 
-
     float v0density = terrainDensity(pos);
     float v1density = terrainDensity(pos + ivec3(0,2,0));
 

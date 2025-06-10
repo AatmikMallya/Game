@@ -47,6 +47,7 @@ const uint VOXEL_TYPE_AIR = 0;
 const uint VOXEL_TYPE_SOLID = 1;
 const uint VOXEL_TYPE_WATER = 2;
 const uint VOXEL_TYPE_LAVA = 3;
+const uint VOXEL_TYPE_SAND = 4;
 const vec3 DEFAULT_WATER_COLOR = vec3(0.1, 0.3, 0.8);
 const vec3 DEFAULT_LAVA_COLOR = vec3(4.0, 0.6, 0.1);
 
@@ -61,14 +62,16 @@ Voxel createAirVoxel() {
     return createVoxel(VOXEL_TYPE_AIR, vec3(0.0));
 }
 
-Voxel createWaterVoxel() {
-    Voxel voxel = createVoxel(VOXEL_TYPE_WATER, DEFAULT_WATER_COLOR);
+Voxel createWaterVoxel(ivec3 pos) {
+    vec3 color = randomizedColor(DEFAULT_WATER_COLOR, pos); 
+    Voxel voxel = createVoxel(VOXEL_TYPE_WATER, color);
     // voxel.data |= 127;
     return voxel;
 }
 
-Voxel createLavaVoxel() {
-    Voxel voxel = createVoxel(VOXEL_TYPE_LAVA, DEFAULT_LAVA_COLOR);
+Voxel createLavaVoxel(ivec3 pos) {
+    vec3 color = randomizedColor(DEFAULT_LAVA_COLOR, pos); 
+    Voxel voxel = createVoxel(VOXEL_TYPE_LAVA, color);
     // voxel.data |= 127;
     return voxel;
 }
@@ -78,6 +81,10 @@ Voxel createGrassVoxel(ivec3 pos) {
     return createVoxel(VOXEL_TYPE_SOLID, color);
 }
 
+Voxel createSandVoxel(ivec3 pos) {
+    vec3 color = randomizedColor(vec3(.91, .82, .52), pos);
+    return createVoxel(VOXEL_TYPE_SAND, color);
+}
 
 Voxel createRockVoxel(ivec3 pos) {
     vec3 color = randomizedColor(vec3(.24, .25, .32), pos);
@@ -105,10 +112,16 @@ bool isVoxelSolid(Voxel voxel) {
 }
 
 bool isVoxelDynamic(Voxel voxel) {
-    return isVoxelLiquid(voxel);
+    return isVoxelLiquid(voxel) || isVoxelType(voxel, VOXEL_TYPE_SAND);
 }
 
-vec3 getVoxelColor(Voxel voxel) {
+vec3 getVoxelColor(Voxel voxel, ivec3 pos) {
+    // ivec3 liquid_pos = pos + ivec3(10 * sin(voxelWorldProperties.frame * 0.0167));
+    // if(isVoxelType(voxel, VOXEL_TYPE_WATER))
+    //     return randomizedColor(DEFAULT_WATER_COLOR, liquid_pos); 
+    // if(isVoxelType(voxel, VOXEL_TYPE_LAVA))
+    //     return randomizedColor(DEFAULT_LAVA_COLOR, liquid_pos); 
+
     uint color = (voxel.data >> 8) & 0xFFFF;
     return decompress_color16(color);
 }
@@ -150,8 +163,6 @@ void setBothVoxelBuffers(uint index, Voxel voxel)
 }
 
 // -------------------------------------- UTILS --------------------------------------
-
-
 bool isValidPos(ivec3 pos) {
     return pos.x >= 0 && pos.x < voxelWorldProperties.grid_size.x &&
            pos.y >= 0 && pos.y < voxelWorldProperties.grid_size.y &&
@@ -193,16 +204,6 @@ uint posToIndex(ivec3 pos) {
 ivec3 worldToGrid(vec3 pos) {
     return ivec3(pos / voxelWorldProperties.scale);
 }
-
-// ivec3 stepMask(vec3 sideDist) {
-//     // Yoinked from https://www.shadertoy.com/view/l33XWf
-//     bvec3 move;
-//     bvec3 pon=lessThan(sideDist.xyz,sideDist.yzx);
-//     move.x=pon.x && !pon.z;
-//     move.y=pon.y && !pon.x;
-//     move.z=!(move.x||move.y);
-//     return ivec3(move);
-// }
 
 // -------------------------------------- RAYCASTING --------------------------------------
 bool voxelTraceBrick(vec3 origin, vec3 direction, uint voxel_data_pointer, out uint voxelIndex, inout int step_count, inout vec3 normal, out ivec3 grid_position, out float t) {
