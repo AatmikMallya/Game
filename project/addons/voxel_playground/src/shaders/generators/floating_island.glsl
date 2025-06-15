@@ -47,6 +47,8 @@ void main() {
             setBothVoxelBuffers(voxel_index, createRockVoxel(pos));
         else
             setBothVoxelBuffers(voxel_index, createGrassVoxel(pos));
+
+        // atomicAdd(voxelBricks[brick_index].occupancy_count, 1);
     } 
     else if(pos.y > 200) {
         // Create a sky voxel at the top of the world

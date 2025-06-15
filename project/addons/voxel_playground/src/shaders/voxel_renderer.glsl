@@ -96,9 +96,11 @@ void main() {
         color = sampleSkyColor(ray_dir);
     }
     // depth = camera.far / (camera.far - camera.near) * (1.0 - camera.near / depth);
-
     //visualize steps
-    // color = vec3(step_count * 0.001);
+    // if(step_count < 1000)
+    //     color = vec3(step_count * 0.001);
+    // else
+    //     color = vec3(1,0,0);
 
     float depth = 0.0f;
     imageStore(outputImage, pos, vec4(color, 1.0));

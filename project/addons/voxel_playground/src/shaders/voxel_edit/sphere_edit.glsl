@@ -36,7 +36,7 @@ void main() {
         if (params.value == 3)
             voxel = createWaterVoxel(world_pos);
         if (params.value == 4)
-            voxel = createLavaVoxel(world_pos);
+            voxel = createLavaVoxel(world_pos); 
 
         if(isAir ^^ isVoxelAir(voxel))
             setBothVoxelBuffers(voxel_index, voxel);

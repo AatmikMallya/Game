@@ -28,7 +28,7 @@ void main() {
 
     bool hit = voxelTraceWorld(ray_origin, ray_dir, vec2(params.near, params.far), voxel, t, grid_position, normal, step_count);
     if (hit) {
-        params.hit_position = ivec4(grid_position, 1);// vec4(ray_origin + t * ray_dir, 1.0);
+        params.hit_position = ivec4(grid_position, 1);
     } else {
         params.hit_position = vec4(0,0,0,-1);
     }

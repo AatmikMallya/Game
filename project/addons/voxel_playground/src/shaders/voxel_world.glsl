@@ -223,10 +223,13 @@ bool voxelTraceBrick(vec3 origin, vec3 direction, uint voxel_data_pointer, out u
 
     while (all(greaterThanEqual(grid_position, ivec3(0))) &&
            all(lessThanEqual(grid_position, ivec3(7)))) {
+        // Check new voxel
         voxelIndex = voxel_data_pointer + uint(getVoxelIndexInBrick(grid_position));
         if (!isVoxelAir(getVoxel(voxelIndex))) 
             return true;
 
+        //compute mask, i.e. a 3d vector that is 1 for the axis aligned direction
+        //we should move in next, 0 else. 
         float minT = min(min(tMax.x, tMax.y), tMax.z);
         vec3 mask = vec3(1) - step(vec3(1e-4), abs(tMax - vec3(minT)));
         vec3 ray_step = mask * step_dir;
@@ -319,9 +322,7 @@ bool voxelTraceWorld(vec3 origin, vec3 direction, vec2 range, out Voxel voxel, o
 vec3 sampleSkyColor(vec3 direction) {
     float intensity = max(0.0, 0.5 + dot(direction, vec3(0.0, 0.5, 0.0)));
     vec3 sky = mix(voxelWorldProperties.ground_color.rgb, voxelWorldProperties.sky_color.rgb, intensity);
-
     float sun_intensity = pow(max(0.0, dot(direction, voxelWorldProperties.sun_direction.xyz)), 50.0);
-
     return mix(sky, voxelWorldProperties.sun_color.rgb, sun_intensity);
 }
 

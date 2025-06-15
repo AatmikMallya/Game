@@ -12,10 +12,11 @@ ivec3 directions[4] = ivec3[](
     ivec3(0, 0, -1)  // backward
 );
 
-//last 3 bits store direction
+//last 3 bits store direction, we just check all 4 bits for now
 uint getVoxelDirectionID(Voxel voxel) {
     return voxel.data & 0xFu;
 }
+
 void setVoxelDirectionID(inout Voxel voxel, uint directionID) {
     voxel.data = (voxel.data & ~0xFu) | (directionID & 0xFu);
 }
