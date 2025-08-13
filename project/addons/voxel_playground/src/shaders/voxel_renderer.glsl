@@ -35,7 +35,7 @@ layout(std430, set = 1, binding = 3) restrict buffer Camera {
 
 // ----------------------------------- FUNCTIONS -----------------------------------
 
-vec3 blinnPhongShading(vec3 baseColor, vec3 normal, vec3 lightDir, vec3 lightColor, vec3 viewDir) {
+vec3 blinnPhongShading(vec3 baseColor, vec3 normal, vec3 lightDir, vec3 lightColor, vec3 viewDir, float shadow) {
     // return baseColor;
     vec3 diffuse = max(dot(normal, lightDir), 0.0) * baseColor;
     vec3 H = normalize(lightDir + viewDir);
@@ -44,8 +44,12 @@ vec3 blinnPhongShading(vec3 baseColor, vec3 normal, vec3 lightDir, vec3 lightCol
     vec3 ambient = baseColor * sampleSkyColor(reflect(viewDir, normal));
     vec3 specular = pow(NdotH, 10.0) * lightColor;
     // vec3 specular = 0.5 * pow(max(dot(reflect(-lightDir, normal), viewDir), 0.0), 100.0) * lightColor;
-    return 0.25 * specular + 1.0 * diffuse + 0.2 * ambient;
+    vec3 result = 0.25 * shadow * specular;
+    result += 1.0 * (shadow * 0.5 + 0.5) * diffuse;
+    result += 0.2 * ambient;
+    return result;
 }
+
 
 layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
 void main() {
@@ -89,8 +93,7 @@ void main() {
         // direct illumination
         if(emission < 1) {
             float shadow = computeShadow(hitPos, normal, voxelWorldProperties.sun_direction.xyz);
-            color = blinnPhongShading(color, normal, voxelWorldProperties.sun_direction.xyz, voxelWorldProperties.sun_color.rgb, voxel_view_dir);
-            color *= shadow;
+            color = blinnPhongShading(color, normal, voxelWorldProperties.sun_direction.xyz, voxelWorldProperties.sun_color.rgb, voxel_view_dir, shadow);
         }
     } else {
         color = sampleSkyColor(ray_dir);

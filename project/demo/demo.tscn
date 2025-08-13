@@ -1,9 +1,11 @@
-[gd_scene load_steps=9 format=3 uid="uid://s8dmi2g1hu2t"]
+[gd_scene load_steps=10 format=3 uid="uid://s8dmi2g1hu2t"]
 
 [ext_resource type="Script" uid="uid://bx00fnhlbwhlh" path="res://demo/world_editor.gd" id="2_dar0o"]
 [ext_resource type="Script" uid="uid://ojind5ypwi07" path="res://demo/auxiliary/fps_meter.gd" id="2_ytiva"]
 [ext_resource type="Script" uid="uid://cuinm7x4gnsph" path="res://demo/auxiliary/inventory/inventory.gd" id="3_j5lb4"]
 [ext_resource type="Script" uid="uid://cyvv1bjdipbml" path="res://demo/player_controller.gd" id="4_j5lb4"]
+
+[sub_resource type="VoxelWorldShaderGenerator" id="VoxelWorldShaderGenerator_j5lb4"]
 
 [sub_resource type="ConcavePolygonShape3D" id="ConcavePolygonShape3D_dar0o"]
 
@@ -26,7 +28,9 @@ adjustment_saturation = 1.1
 [node name="World" type="Node3D"]
 
 [node name="VoxelWorld" type="VoxelWorld" parent="." node_paths=PackedStringArray("voxel_world_collider", "player_node", "sun_light")]
+generator = SubResource("VoxelWorldShaderGenerator_j5lb4")
 brick_map_size = Vector3i(80, 32, 80)
+scale = 0.25
 voxel_world_collider = NodePath("VoxelWorldCollider")
 player_node = NodePath("../Player")
 sun_light = NodePath("Sun")
@@ -50,7 +54,7 @@ shape = SubResource("ConcavePolygonShape3D_dar0o")
 transform = Transform3D(0.63628, 0.354164, -0.685359, 0.013708, 0.883062, 0.469055, 0.771337, -0.307845, 0.55702, 0, 0, 0)
 
 [node name="Player" type="CharacterBody3D" parent="." node_paths=PackedStringArray("camera")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32, 32, 32)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32, 66.6397, 32)
 script = ExtResource("4_j5lb4")
 camera = NodePath("VoxelCamera")
 is_flying = true

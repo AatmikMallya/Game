@@ -11,18 +11,21 @@
 
 using namespace godot;
 
-class VoxelWorldGenerator
+class VoxelWorldGenerator : public Resource
 {
-
-    ComputeShader *compute_shader = nullptr;
+    GDCLASS(VoxelWorldGenerator, Resource)
 
   public:
-    VoxelWorldGenerator() {};
-    ~VoxelWorldGenerator() {};
+    VoxelWorldGenerator() = default;
+    virtual ~VoxelWorldGenerator() = default;
 
-    void initialize_brick_grid(RenderingDevice *rd, VoxelWorldRIDs voxel_world_rids, const Vector3i brick_grid_size);
+    void initialize_brick_grid(RenderingDevice *rd, VoxelWorldRIDs &voxel_world_rids,
+                               const VoxelWorldProperties &properties);
 
-    void populate(RenderingDevice *rd, VoxelWorldRIDs voxel_world_rids, const Vector3i size);
+    virtual void generate(RenderingDevice *rd, VoxelWorldRIDs &voxel_world_rids,
+                          const VoxelWorldProperties &properties) = 0;
+
+    static void _bind_methods() {};
 };
 
 #endif // VOXEL_WORLD_GENERATOR_H

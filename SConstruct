@@ -19,12 +19,14 @@ env.Append(CPPPATH=[
     "src/voxel_world/cellular_automata/"
     "src/voxel_world/voxel_edit/"
     "src/voxel_world/colliders/"
+    "src/voxel_world/data/"
 ])
 
 # # Add main source files
 sources = Glob("src/*.cpp") + Glob("src/utility/*.cpp") + Glob("src/gdcs/src/*.cpp") + \
       Glob("src/voxel_rendering/*.cpp") + Glob("src/voxel_world/*.cpp") + \
-      Glob("src/voxel_world/generator/*.cpp") + Glob("src/voxel_world/cellular_automata/*.cpp") + Glob("src/voxel_world/voxel_edit/*.cpp") + Glob("src/voxel_world/colliders/*.cpp")
+      Glob("src/voxel_world/generator/*.cpp") + Glob("src/voxel_world/cellular_automata/*.cpp") + Glob("src/voxel_world/voxel_edit/*.cpp") + \
+      Glob("src/voxel_world/colliders/*.cpp") + Glob("src/voxel_world/data/*.cpp")
 
 #compiler flags
 if env['PLATFORM'] == 'windows':
