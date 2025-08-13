@@ -114,25 +114,28 @@ void VoxelWorld::init()
         _voxel_properties.set_sun(_sun_light->get_color(), -_sun_light->get_global_transform().basis.rows[2]);
     _voxel_properties.frame = 0;
     _rd = RenderingServer::get_singleton()->get_rendering_device();
+    _voxel_world_rids.rendering_device = _rd;
 
     // create grid buffer
     PackedByteArray voxel_bricks;
     int brick_count = brick_map_size.x * brick_map_size.y * brick_map_size.z;
     voxel_bricks.resize(brick_count * sizeof(Brick));
     _voxel_world_rids.voxel_bricks = _rd->storage_buffer_create(voxel_bricks.size(), voxel_bricks);
+    _voxel_world_rids.brick_count = brick_count;
 
     // Create the voxel data buffer.
     PackedByteArray voxel_data;
     int voxel_count = size.x * size.y * size.z;
-    if (voxel_count * sizeof(Voxel) > 8.0e9f)
+    if (voxel_count * sizeof(Voxel) > 4.0e9f)
     {
         UtilityFunctions::printerr(
-            "VoxelWorld: The voxel world is too large (exceeds 8GB). Reduce the brick map size or scale.");
+            "VoxelWorld: The voxel world is too large (exceeds 4GB, or 2 billion voxels). Reduce the brick map size.");
         return;
     }
     voxel_data.resize(voxel_count * sizeof(Voxel));
     _voxel_world_rids.voxel_data = _rd->storage_buffer_create(voxel_data.size(), voxel_data);
     _voxel_world_rids.voxel_data2 = _rd->storage_buffer_create(voxel_data.size(), voxel_data); //create a second to facilitate ping-pong buffers
+    _voxel_world_rids.voxel_count = voxel_count;
 
     // Create the voxel properties buffer.
     PackedByteArray properties_data = _voxel_properties.to_packed_byte_array();

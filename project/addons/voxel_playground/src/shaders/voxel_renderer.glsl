@@ -41,7 +41,8 @@ vec3 blinnPhongShading(vec3 baseColor, vec3 normal, vec3 lightDir, vec3 lightCol
     vec3 H = normalize(lightDir + viewDir);
     float NdotH = max(dot(normal, H), 0);
 
-    vec3 ambient = baseColor * sampleSkyColor(reflect(viewDir, normal));
+    // vec3 ambient = baseColor * sampleSkyColor(reflect(viewDir, normal));
+    vec3 ambient = baseColor * voxelWorldProperties.sky_color.rgb;
     vec3 specular = pow(NdotH, 10.0) * lightColor;
     // vec3 specular = 0.5 * pow(max(dot(reflect(-lightDir, normal), viewDir), 0.0), 100.0) * lightColor;
     vec3 result = 0.25 * shadow * specular;
@@ -87,7 +88,7 @@ void main() {
             color += vec3(0.05 * sin(0.0167 * voxelWorldProperties.frame + 0.2 * (grid_position.x + grid_position.y + grid_position.z)));
             color += vec3(((voxel.data & 0xFu) > 0) ? 0.5 : 0);
         }
-        color *= 0.05 * dot(normal, vec3(0.25, 0.35, 0.4)) + 0.95; //discolor different faces slightly.
+        color *= 0.05 * dot(normal, vec3(0.5, 1.0, 0.0)) + 0.95; //discolor different faces slightly.
         vec3 voxel_view_dir = normalize(camera.position.xyz - voxel_pos);
 
         // direct illumination

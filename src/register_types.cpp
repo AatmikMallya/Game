@@ -3,6 +3,7 @@
 #include "voxel_world/voxel_world.h"
 #include "voxel_world/generator/voxel_world_generator.h"
 #include "voxel_world/generator/voxel_world_shader_generator.h"
+#include "voxel_world/generator/voxel_world_data_loader.h"
 #include "voxel_world/data/voxel_data_vox.h"
 
 using namespace godot;
@@ -16,6 +17,7 @@ void initialize_voxel_playground_module(ModuleInitializationLevel p_level)
 
         GDREGISTER_ABSTRACT_CLASS(VoxelWorldGenerator);
         GDREGISTER_CLASS(VoxelWorldShaderGenerator);
+        GDREGISTER_CLASS(VoxelWorldDataLoader);
         
 
         GDREGISTER_CLASS(VoxelCamera);

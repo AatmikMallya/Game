@@ -98,6 +98,27 @@ class Utils : public Object
         }
         
     }
+
+    static inline unsigned int compress_color16(Color rgb) {
+        
+        // H: 7 bits, S: 4 bits, V: 5 bits
+        unsigned int h = unsigned int(rgb.get_h() * 127.0);
+        unsigned int s = unsigned int(rgb.get_s() * 15.0);
+        unsigned int v = unsigned int(rgb.get_v() * 31.0);
+        
+        // Pack into a single unsigned int
+        return (h << 9) | (s << 5) | v;
+    }
+
+    static inline Color decompress_color16(unsigned int packedColor) {
+        // Extract H, S, V components
+        unsigned int h = (packedColor >> 9) & 0x7F; // 7 bits for hue
+        unsigned int s = (packedColor >> 5) & 0x0F; // 4 bits for saturation
+        unsigned int v = packedColor & 0x1F;        // 5 bits for value
+        
+        // Convert back to RGB
+        return Color::from_hsv(float(h) / 128.0, float(s) / 16.0, float(v) / 32.0);
+    }
 };
 
 } // namespace godot

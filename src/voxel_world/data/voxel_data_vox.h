@@ -1,15 +1,15 @@
 #ifndef VOXEL_DATA_VOX_H
 #define VOXEL_DATA_VOX_H
 
-#include <godot_cpp/classes/node3d.hpp>
 #include <godot_cpp/classes/file_access.hpp>
+#include <godot_cpp/classes/node3d.hpp>
 #include <godot_cpp/classes/rendering_device.hpp>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/rid.hpp>
 
 #include "gdcs/include/gdcs.h"
-#include "voxel_world/voxel_properties.h"
 #include "voxel_data.h"
+#include "voxel_world/voxel_properties.h"
 
 using namespace godot;
 
@@ -18,23 +18,73 @@ class VoxelDataVox : public VoxelData
     GDCLASS(VoxelDataVox, VoxelData)
 
   public:
-    VoxelDataVox() {};
-    ~VoxelDataVox() {};
+    VoxelDataVox() = default;
+    ~VoxelDataVox() override = default;
 
-    Vector3i get_size() const override;
-    std::vector<Voxel> get_voxels() const override; //get all voxels in a grid linearized into x, y, z order
-
-    Ref<FileAccess> get_file() const {
-        return file;
+    Vector3i get_size() const override
+    {
+        return size;
     }
-    void set_file(const Ref<FileAccess> &p_file) {
-        file = p_file;
+    std::vector<Voxel> get_voxels() const override
+    {
+        return voxels;
+    }
+    Voxel get_voxel_at(Vector3i p) const override
+    {
+        if (swap_y_z)
+        {
+            // Swap Y and Z axes for MagicaVoxel compatibility
+            int temp = p.y;
+            p.y = p.z;
+            p.z = temp;
+        }
+        if (p.x < 0 || p.y < 0 || p.z < 0 || p.x >= size.x || p.y >= size.y || p.z >= size.z)
+        {
+            return Voxel::create_air_voxel();
+        }
+        size_t idx = ((size_t)p.z * size.y + (size_t)p.y) * size.x + (size_t)p.x;
+        return voxels[idx];
     }
 
-    static void _bind_methods() {};
+    String get_file_path() const
+    {
+        return file_path;
+    }
+    void set_file_path(const String &p_file_path)
+    {
+        file_path = p_file_path;
+    }
+
+    bool get_swap_y_z() const
+    {
+        return swap_y_z;
+    }
+    void set_swap_y_z(bool p_swap_y_z)
+    {
+        swap_y_z = p_swap_y_z;
+    }
+
+    Error load() override;
+
+    static void _bind_methods()
+    {
+        ClassDB::bind_method(D_METHOD("get_file_path"), &VoxelDataVox::get_file_path);
+        ClassDB::bind_method(D_METHOD("set_file_path", "file_path"), &VoxelDataVox::set_file_path);
+        ADD_PROPERTY(PropertyInfo(Variant::STRING, "file_path", PROPERTY_HINT_FILE, "*.vox"), "set_file_path",
+                     "get_file_path");
+
+        ClassDB::bind_method(D_METHOD("get_swap_y_z"), &VoxelDataVox::get_swap_y_z);
+        ClassDB::bind_method(D_METHOD("set_swap_y_z", "swap_y_z"), &VoxelDataVox::set_swap_y_z);
+        ADD_PROPERTY(PropertyInfo(Variant::BOOL, "swap_y_z"), "set_swap_y_z", "get_swap_y_z");
+    }
 
   private:
-    Ref<FileAccess> file;
+    String file_path;
+    Vector3i size = Vector3i(0, 0, 0);
+    std::vector<Color> palette;
+    std::vector<Voxel> voxels;
+    bool swap_y_z = true; // MagicaVoxel uses Z-up, Godot uses Y-up, so we need to swap Y and Z axes when loading
+    static const uint32_t VoxelDataVox::DEFAULT_VOX_PALETTE_ABGR[256];
 };
 
 #endif // VOXEL_DATA_VOX_H

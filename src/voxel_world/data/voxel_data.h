@@ -23,6 +23,8 @@ class VoxelData : public Resource
 
     virtual Vector3i get_size() const = 0;
     virtual std::vector<Voxel> get_voxels() const = 0; //get all voxels in a grid linearized into x, y, z order
+    virtual Voxel get_voxel_at(Vector3i voxel_pos) const = 0; //get all voxels in a grid linearized into x, y, z order
+    virtual Error load() = 0; //initialize the voxel data, e.g. load from file
 
 
 };

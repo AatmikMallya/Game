@@ -326,7 +326,7 @@ vec3 sampleSkyColor(vec3 direction) {
 
 float computeShadow(vec3 position, vec3 normal, vec3 lightDir) {
     float t; ivec3 grid_position; vec3 normal_out; int step_count; Voxel voxel;
-    return voxelTraceWorld(position + normal * 0.001, lightDir, vec2(0.0, 100.0), voxel, t, grid_position, normal_out, step_count) ? 0.0 : 1.0;
+    return voxelTraceWorld(position + normal * 0.001, lightDir, vec2(0.0, 100.0), voxel, t, grid_position, normal_out, step_count) ? (t > 0.001 ? 0.0 : 1.0) : 1.0;
 }
 
 #endif // VOXEL_WORLD_GLSL

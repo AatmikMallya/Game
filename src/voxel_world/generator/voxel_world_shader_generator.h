@@ -27,7 +27,7 @@ public:
     static void _bind_methods() {
         ClassDB::bind_method(D_METHOD("set_shader_path", "path"), &VoxelWorldShaderGenerator::set_shader_path);
         ClassDB::bind_method(D_METHOD("get_shader_path"), &VoxelWorldShaderGenerator::get_shader_path);
-        ADD_PROPERTY(PropertyInfo(Variant::STRING, "shader_path"), "set_shader_path", "get_shader_path");
+        ADD_PROPERTY(PropertyInfo(Variant::STRING, "shader_path", PROPERTY_HINT_FILE, "*.glsl"), "set_shader_path", "get_shader_path");
     }
 };
 
