@@ -29,21 +29,43 @@ class VoxelDataVox : public VoxelData
     {
         return voxels;
     }
+    std::vector<uint8_t> get_voxel_indices() const
+    {
+        return voxel_indices;
+    }
+    std::vector<Color> get_palette() const
+    {
+        return palette;
+    }
+
     Voxel get_voxel_at(Vector3i p) const override
     {
+        if (p.x < 0 || p.y < 0 || p.z < 0 || p.x >= size.x || p.y >= size.y || p.z >= size.z)
+            return Voxel::create_air_voxel();
         if (swap_y_z)
         {
-            // Swap Y and Z axes for MagicaVoxel compatibility
             int temp = p.y;
             p.y = p.z;
             p.z = temp;
         }
-        if (p.x < 0 || p.y < 0 || p.z < 0 || p.x >= size.x || p.y >= size.y || p.z >= size.z)
-        {
-            return Voxel::create_air_voxel();
-        }
+
         size_t idx = ((size_t)p.z * size.y + (size_t)p.y) * size.x + (size_t)p.x;
         return voxels[idx];
+    }
+
+    uint8_t get_voxel_index_at(Vector3i p) const
+    {
+        if (p.x < 0 || p.y < 0 || p.z < 0 || p.x >= size.x || p.y >= size.y || p.z >= size.z)
+            return 0;
+        if (swap_y_z)
+        {
+            int temp = p.y;
+            p.y = p.z;
+            p.z = temp;
+        }
+
+        size_t idx = ((size_t)p.z * size.y + (size_t)p.y) * size.x + (size_t)p.x;
+        return voxel_indices[idx];
     }
 
     String get_file_path() const
@@ -83,6 +105,7 @@ class VoxelDataVox : public VoxelData
     Vector3i size = Vector3i(0, 0, 0);
     std::vector<Color> palette;
     std::vector<Voxel> voxels;
+    std::vector<uint8_t> voxel_indices;
     bool swap_y_z = true; // MagicaVoxel uses Z-up, Godot uses Y-up, so we need to swap Y and Z axes when loading
     static const uint32_t VoxelDataVox::DEFAULT_VOX_PALETTE_ABGR[256];
 };

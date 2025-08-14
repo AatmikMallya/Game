@@ -21,6 +21,7 @@ class VoxelData : public Resource
 
     static void _bind_methods() {};
 
+    size_t get_count() const { return get_size().x * get_size().y * get_size().z; }
     virtual Vector3i get_size() const = 0;
     virtual std::vector<Voxel> get_voxels() const = 0; //get all voxels in a grid linearized into x, y, z order
     virtual Voxel get_voxel_at(Vector3i voxel_pos) const = 0; //get all voxels in a grid linearized into x, y, z order

@@ -132,6 +132,7 @@ Error VoxelDataVox::load() {
     for (int i = 0; i < 256; ++i) palette[i] = palette_entry_to_color(pal_abgr[i]);
 
     voxels.assign((size_t)size.x * size.y * size.z, Voxel::create_air_voxel());
+    voxel_indices.assign((size_t)size.x * size.y * size.z, 0);
 
     auto index3 = [&](int x, int y, int z) -> size_t {
         return ((size_t)z * size.y + (size_t)y) * size.x + (size_t)x;
@@ -143,6 +144,7 @@ Error VoxelDataVox::load() {
         Color c = palette[pal_index ? pal_index - 1 : 0];
         Voxel v = Voxel::create_voxel(Voxel::VOXEL_TYPE_SOLID, c);
         voxels[index3(p.x, p.y, p.z)] = v;
+        voxel_indices[index3(p.x, p.y, p.z)] = pal_index;
     }
 
     return OK;

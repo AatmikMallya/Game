@@ -27,7 +27,5 @@ void VoxelWorldDataLoader::generate(RenderingDevice *rd, VoxelWorldRIDs &voxel_w
         }
     }
 
-    UtilityFunctions::print("building!!");
-
     voxel_world_rids.set_voxel_data(voxel_data_vector);
 }

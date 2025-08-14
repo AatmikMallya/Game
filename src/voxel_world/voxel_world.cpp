@@ -159,7 +159,7 @@ void VoxelWorld::init()
     // if collider set, initialize it
     if (_voxel_world_collider != nullptr)
     {
-        _voxel_world_collider->init(_rd, _voxel_world_rids, scale);
+        // _voxel_world_collider->init(_rd, _voxel_world_rids, scale);
     }
     
     _initialized = true;
@@ -180,6 +180,6 @@ void VoxelWorld::update(float delta)
 
     if (_voxel_world_collider != nullptr && player_node != nullptr)
     {
-        _voxel_world_collider->update(get_voxel_world_position(player_node->get_global_position()));
+        // _voxel_world_collider->update(get_voxel_world_position(player_node->get_global_position()));
     }
 }
