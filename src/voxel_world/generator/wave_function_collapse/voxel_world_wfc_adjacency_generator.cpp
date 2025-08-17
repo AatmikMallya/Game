@@ -9,7 +9,7 @@
 #include <random>
 #include <vector>
 
-#include "voxel_world_wfc_generator.h"
+#include "voxel_world_wfc_adjacency_generator.h"
 
 #include "wfc_neighborhood.h"
 #include <godot_cpp/variant/utility_functions.hpp>
@@ -83,7 +83,7 @@ inline float safe_log(float x)
 {
     return std::log(std::max(x, EPS));
 }
-/*
+
 inline float biased_entropy(const std::array<float, T> &p)
 {
     constexpr float w_air = 0.1f; // Air is "less interesting"
@@ -110,7 +110,7 @@ inline float biased_entropy(const std::array<float, T> &p)
             H -= pi * safe_log(pi);
     }
     return H;
-}*/
+}
 
 inline float shannon_entropy(const std::array<float, T> &p)
 {
@@ -272,25 +272,27 @@ WFCModel build_model_from_voxels(const Ref<VoxelDataVox> voxel_data, const Vecto
     {
         for (int neigh = 0; neigh < T; ++neigh)
         {
+            bool use_binary_mask = true;
             double row_sum = 0.0;
             for (int center = 0; center < T; ++center)
             {
                 double v = counts[k][neigh][center] + (use_alpha ? alpha : 0.0);
+                if(use_binary_mask) v = v > 0.01f ? 1.0f : 0.0f;
                 model.probabilities[k][neigh][center] = float(v);
                 row_sum += v;
             }
-            if (row_sum > 0)
+            if (row_sum > 0 && !use_binary_mask)
             {
                 float inv = float(1.0 / row_sum);
                 for (int center = 0; center < T; ++center)
                     model.probabilities[k][neigh][center] *= inv;
             }
-            else
-            {
-                // fallback to priors if no observations
-                for (int center = 0; center < T; ++center)
-                    model.probabilities[k][neigh][center] = 0; // model.priors[center];
-            }
+            // else
+            // {
+            //     // fallback to priors if no observations
+            //     for (int center = 0; center < T; ++center)
+            //         model.probabilities[k][neigh][center] = 0; // model.priors[center];
+            // }
         }
     }
 
@@ -334,7 +336,7 @@ bool update_from_neighbor(SuperpositionVoxel &tgt, const WFCModel &model,
     return any;
 }*/
 
-void VoxelWorldWFCGenerator::generate(RenderingDevice *rd, VoxelWorldRIDs &voxel_world_rids,
+void VoxelWorldWFCAdjacencyGenerator::generate(RenderingDevice *rd, VoxelWorldRIDs &voxel_world_rids,
                                       const VoxelWorldProperties &properties)
 {
     if (voxel_data.is_null())
@@ -346,15 +348,16 @@ void VoxelWorldWFCGenerator::generate(RenderingDevice *rd, VoxelWorldRIDs &voxel
 
     // Decide output size
     Vector3i out_size = Vector3i(properties.grid_size.x, properties.grid_size.y, properties.grid_size.z);
-    grid_size = grid_size.min(out_size);
+    auto grid_size = target_grid_size.min(out_size);
 
     Vector3i training_size = voxel_data->get_size();
 
     const bool use_alpha = false;
     const float alpha = 0.25;
 
-    // Moore26Neighborhood ngh = Moore26Neighborhood();
-    Face6Neighborhood ngh = Face6Neighborhood();
+    Moore ngh(1);
+    // Face6Neighborhood ngh = Face6Neighborhood();
+
     const int K = ngh.get_K();
 
     auto model = build_model_from_voxels(voxel_data, training_size, ngh, use_alpha, alpha);
@@ -485,7 +488,7 @@ void VoxelWorldWFCGenerator::generate(RenderingDevice *rd, VoxelWorldRIDs &voxel
             if (!in_bounds(np, grid_size))
                 continue;
             int nidx = index_3d(np, grid_size);
-            float w = ngh.weight_for_offset(k);
+            float w = 1.0;//ngh.weight_for_offset(k);
 
             if (grid[nidx]->kind() == WFCVoxel::Kind::EMPTY)
             {

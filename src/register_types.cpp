@@ -4,7 +4,8 @@
 #include "voxel_world/generator/voxel_world_generator.h"
 #include "voxel_world/generator/voxel_world_shader_generator.h"
 #include "voxel_world/generator/voxel_world_data_loader.h"
-#include "voxel_world/generator/voxel_world_wfc_generator.h"
+#include "voxel_world/generator/wave_function_collapse/voxel_world_wfc_adjacency_generator.h"
+#include "voxel_world/generator/wave_function_collapse/voxel_world_wfc_pattern_generator.h"
 #include "voxel_world/data/voxel_data_vox.h"
 
 using namespace godot;
@@ -16,10 +17,13 @@ void initialize_voxel_playground_module(ModuleInitializationLevel p_level)
         GDREGISTER_ABSTRACT_CLASS(VoxelData);
         GDREGISTER_CLASS(VoxelDataVox);
 
-        GDREGISTER_ABSTRACT_CLASS(VoxelWorldGenerator);
+        GDREGISTER_ABSTRACT_CLASS(VoxelWorldGenerator);        
         GDREGISTER_CLASS(VoxelWorldShaderGenerator);
         GDREGISTER_CLASS(VoxelWorldDataLoader);
-        GDREGISTER_CLASS(VoxelWorldWFCGenerator);
+
+        GDREGISTER_ABSTRACT_CLASS(WaveFunctionCollapseGenerator);
+        GDREGISTER_CLASS(VoxelWorldWFCAdjacencyGenerator);
+        GDREGISTER_CLASS(VoxelWorldWFCPatternGenerator);
         
 
         GDREGISTER_CLASS(VoxelCamera);

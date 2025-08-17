@@ -5,7 +5,7 @@ const MAX_MOVE_SPEED = 512;
 
 @export var camera : Node3D
 
-@export var speed = 5.0
+@export var speed = 5.00
 @export var jump_velocity = 4.5
 @export var fly_speed : float = 8.0
 @export var look_sensitivity : float = 0.1
@@ -17,8 +17,8 @@ func set_mouse(value: bool) -> void:
 	input_active = value;
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED if input_active else Input.MOUSE_MODE_VISIBLE;
 
-func _ready() -> void:
-	set_mouse(true);
+func _ready() -> void: 
+	set_mouse(true); 
 
 func _input(event) -> void:
 	if event.is_action_pressed("change_player_mode"):

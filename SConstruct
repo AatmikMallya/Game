@@ -16,6 +16,7 @@ env.Append(CPPPATH=[
     "src/voxel_rendering/",
     "src/voxel_world/",
     "src/voxel_world/generator/",
+    "src/voxel_world/generator/wave_function_collapse/",
     "src/voxel_world/cellular_automata/"
     "src/voxel_world/voxel_edit/"
     "src/voxel_world/colliders/"
@@ -25,7 +26,8 @@ env.Append(CPPPATH=[
 # # Add main source files
 sources = Glob("src/*.cpp") + Glob("src/utility/*.cpp") + Glob("src/gdcs/src/*.cpp") + \
       Glob("src/voxel_rendering/*.cpp") + Glob("src/voxel_world/*.cpp") + \
-      Glob("src/voxel_world/generator/*.cpp") + Glob("src/voxel_world/cellular_automata/*.cpp") + Glob("src/voxel_world/voxel_edit/*.cpp") + \
+      Glob("src/voxel_world/generator/*.cpp") + Glob("src/voxel_world/generator/wave_function_collapse/*.cpp") +\
+      Glob("src/voxel_world/cellular_automata/*.cpp") + Glob("src/voxel_world/voxel_edit/*.cpp") + \
       Glob("src/voxel_world/colliders/*.cpp") + Glob("src/voxel_world/data/*.cpp")
 
 #compiler flags

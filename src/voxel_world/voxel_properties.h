@@ -20,6 +20,18 @@ namespace godot
         Voxel() : data(0) {}
 
         int data;
+
+        String get_string() const {
+            return String::num(data);
+        }
+
+        bool operator==(const Voxel &other) const {
+            return data == other.data;
+        }
+
+        bool operator!=(const Voxel &other) const {
+            return data != other.data;
+        }
         
         // static values and methods, defined the same as on the GPU
         static const unsigned int VOXEL_TYPE_AIR = 0;
