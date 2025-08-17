@@ -37,9 +37,14 @@ const uint32_t VoxelDataVox::DEFAULT_VOX_PALETTE_ABGR[256] = {
 	0xff880000, 0xff770000, 0xff550000, 0xff440000, 0xff220000, 0xff110000, 0xffeeeeee, 0xffdddddd, 0xffbbbbbb, 0xffaaaaaa, 0xff888888, 0xff777777, 0xff555555, 0xff444444, 0xff222222, 0xff111111
 };
 
+size_t VoxelDataVox::index3(int x, int y, int z) const {
+    return ((size_t)z * size.y + (size_t)y) * size.x + (size_t)x;
+};
+
 Error VoxelDataVox::load() {
     palette.clear();
     voxels.clear();
+    voxel_indices.clear();
     size = Vector3i();
 
     if (file_path.is_empty()) {
@@ -54,71 +59,70 @@ Error VoxelDataVox::load() {
     }
 
     auto read_u32 = [&]() -> uint32_t { return f->get_32(); };
-    auto read_tag = [&]() -> uint32_t { return f->get_32(); };
 
-    uint32_t magic = read_tag();
-    if (magic != String("VOX ").hash()) {
-        // Read literal 'VOX ' bytes instead, since FileAccess returns numbers
-        f->seek(0);
-        PackedByteArray hdr = f->get_buffer(4);
-        if (hdr.size() != 4 || hdr[0] != 'V' || hdr[1] != 'O' || hdr[2] != 'X' || hdr[3] != ' ') {
-            UtilityFunctions::printerr("VoxelDataVox: invalid header");
-            return ERR_FILE_CORRUPT;
-        }
+    // --- Header check ---
+    PackedByteArray hdr = f->get_buffer(4);
+    if (hdr.size() != 4 || hdr[0] != 'V' || hdr[1] != 'O' || hdr[2] != 'X' || hdr[3] != ' ') {
+        UtilityFunctions::printerr("VoxelDataVox: invalid header");
+        return ERR_FILE_CORRUPT;
     }
     uint32_t version = read_u32(); // usually 150
 
-    uint32_t main_id = read_tag();    // 'MAIN'
-    uint32_t main_size = read_u32();  // 0
-    uint32_t main_child = read_u32(); // size of all children
+    // MAIN chunk
+    PackedByteArray main_tag = f->get_buffer(4); // should be "MAIN"
+    uint32_t main_size  = read_u32();
+    uint32_t main_child = read_u32();
+    uint64_t end_of_main = f->get_position() + main_child;
 
     Vector3i found_size(0, 0, 0);
     std::vector<VoxXYZI> points;
     std::array<uint32_t, 256> pal_abgr{};
-    bool has_custom_palette = false;
     for (int i = 0; i < 256; ++i) pal_abgr[i] = DEFAULT_VOX_PALETTE_ABGR[i];
 
-    uint64_t end_of_main = f->get_position() + main_child;
-
+    // --- Parse chunks ---
     while (f->get_position() < end_of_main && !f->eof_reached()) {
         PackedByteArray tag_b = f->get_buffer(4);
         if (tag_b.size() < 4) break;
-        uint32_t id = (uint32_t)tag_b[0] | ((uint32_t)tag_b[1] << 8) | ((uint32_t)tag_b[2] << 16) | ((uint32_t)tag_b[3] << 24);
         uint32_t chunk_size = read_u32();
         uint32_t child_size = read_u32();
         uint64_t chunk_start = f->get_position();
 
-        if (tag_b[0]=='S'&&tag_b[1]=='I'&&tag_b[2]=='Z'&&tag_b[3]=='E') {
+        if (tag_b[0]=='S' && tag_b[1]=='I' && tag_b[2]=='Z' && tag_b[3]=='E') {
             int32_t sx = (int32_t)read_u32();
             int32_t sy = (int32_t)read_u32();
             int32_t sz = (int32_t)read_u32();
-            found_size = Vector3i(sx, sy, sz);
-        } else if (tag_b[0]=='X'&&tag_b[1]=='Y'&&tag_b[2]=='Z'&&tag_b[3]=='I') {
+            // Swap sy <-> sz for Y‑up
+            found_size = Vector3i(sx, sz, sy);
+        }
+        else if (tag_b[0]=='X' && tag_b[1]=='Y' && tag_b[2]=='Z' && tag_b[3]=='I') {
             uint32_t n = read_u32();
             points.resize(n);
             PackedByteArray buf = f->get_buffer(n * 4);
             for (uint32_t i = 0; i < n; ++i) {
-                points[i].x = buf[i * 4 + 0];
-                points[i].y = buf[i * 4 + 1];
-                points[i].z = buf[i * 4 + 2];
-                points[i].i = buf[i * 4 + 3];
+                uint8_t mx = buf[i*4+0];
+                uint8_t my = buf[i*4+1];
+                uint8_t mz = buf[i*4+2];
+                uint8_t mi = buf[i*4+3];
+                // Convert Magica (Z‑up) → Engine (Y‑up)
+                points[i].x = mx;
+                points[i].y = mz; // Magica Z becomes engine Y
+                points[i].z = my; // Magica Y becomes engine Z
+                points[i].i = mi;
             }
-        } else if (tag_b[0]=='R'&&tag_b[1]=='G'&&tag_b[2]=='B'&&tag_b[3]=='A') {
+        }
+        else if (tag_b[0]=='R' && tag_b[1]=='G' && tag_b[2]=='B' && tag_b[3]=='A') {
             PackedByteArray buf = f->get_buffer(256 * 4);
             if (buf.size() == 256 * 4) {
                 for (int i = 0; i < 256; ++i) {
-                    uint32_t abgr = (uint32_t)buf[i * 4 + 0]
-                                  | ((uint32_t)buf[i * 4 + 1] << 8)
-                                  | ((uint32_t)buf[i * 4 + 2] << 16)
-                                  | ((uint32_t)buf[i * 4 + 3] << 24);
+                    uint32_t abgr = (uint32_t)buf[i*4+0]
+                                  | ((uint32_t)buf[i*4+1] << 8)
+                                  | ((uint32_t)buf[i*4+2] << 16)
+                                  | ((uint32_t)buf[i*4+3] << 24);
                     pal_abgr[i] = abgr;
                 }
-                has_custom_palette = true;
             }
-        } else {
-            f->seek(chunk_start + chunk_size);
         }
-
+        // Skip unknown chunk data
         f->seek(chunk_start + chunk_size + child_size);
     }
 
@@ -127,14 +131,16 @@ Error VoxelDataVox::load() {
         return ERR_FILE_CORRUPT;
     }
 
+    // Final internal size already matches Y‑up
     size = found_size;
     palette.resize(256);
-    for (int i = 0; i < 256; ++i) palette[i] = palette_entry_to_color(pal_abgr[i]);
+    for (int i = 0; i < 256; ++i)
+        palette[i] = palette_entry_to_color(pal_abgr[i]);
 
     voxels.assign((size_t)size.x * size.y * size.z, Voxel::create_air_voxel());
-    voxel_indices.assign((size_t)size.x * size.y * size.z, 0);
+    voxel_indices.assign(voxels.size(), 0);
 
-    auto index3 = [&](int x, int y, int z) -> size_t {
+    auto index3_local = [&](int x, int y, int z) -> size_t {
         return ((size_t)z * size.y + (size_t)y) * size.x + (size_t)x;
     };
 
@@ -142,10 +148,8 @@ Error VoxelDataVox::load() {
         if (p.x >= size.x || p.y >= size.y || p.z >= size.z || p.i <= 0) continue;
         uint8_t pal_index = p.i;
         Color c = palette[pal_index ? pal_index - 1 : 0];
-        Voxel v = Voxel::create_voxel(Voxel::VOXEL_TYPE_SOLID, c);
-        voxels[index3(p.x, p.y, p.z)] = v;
-        voxel_indices[index3(p.x, p.y, p.z)] = pal_index;
+        voxels[index3_local(p.x, p.y, p.z)] = Voxel::create_voxel(Voxel::VOXEL_TYPE_SOLID, c);
+        voxel_indices[index3_local(p.x, p.y, p.z)] = pal_index;
     }
-
     return OK;
 }

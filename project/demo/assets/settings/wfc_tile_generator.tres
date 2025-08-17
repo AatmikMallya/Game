@@ -1,0 +1,23 @@
+[gd_resource type="VoxelWorldWFCTileGenerator" load_steps=7 format=3 uid="uid://vu1oju0jkh8j"]
+
+[sub_resource type="VoxelDataVox" id="VoxelDataVox_j5lb4"]
+file_path = "res://demo/assets/voxels/tiles/castle_corner.vox"
+
+[sub_resource type="WaveFunctionCollapseTile" id="WaveFunctionCollapseTile_u10mr"]
+voxel_tile = SubResource("VoxelDataVox_j5lb4")
+
+[sub_resource type="VoxelDataVox" id="VoxelDataVox_hx5xk"]
+file_path = "res://demo/assets/voxels/tiles/castle_gate.vox"
+
+[sub_resource type="WaveFunctionCollapseTile" id="WaveFunctionCollapseTile_v2w5s"]
+voxel_tile = SubResource("VoxelDataVox_hx5xk")
+
+[sub_resource type="VoxelDataVox" id="VoxelDataVox_ywv5a"]
+file_path = "res://demo/assets/voxels/tiles/castle_wall.vox"
+
+[sub_resource type="WaveFunctionCollapseTile" id="WaveFunctionCollapseTile_2lkgy"]
+voxel_tile = SubResource("VoxelDataVox_ywv5a")
+
+[resource]
+voxel_tiles = Array[WaveFunctionCollapseTile]([SubResource("WaveFunctionCollapseTile_u10mr"), SubResource("WaveFunctionCollapseTile_v2w5s"), SubResource("WaveFunctionCollapseTile_2lkgy")])
+target_grid_size = Vector3i(256, 64, 256)

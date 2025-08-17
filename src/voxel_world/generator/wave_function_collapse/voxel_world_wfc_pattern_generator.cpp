@@ -14,7 +14,8 @@
 #include <vector>
 
 #include "voxel_world_wfc_pattern_generator.h"
-#include "wfc_neighborhood.h" // provides Neighborhood interface and concrete Face6/Moore26 with offsets(), opposite_index(), get_K()
+#include "wfc_neighborhood.h"
+#include "utility/bit_logic.h"
 
 using namespace godot;
 
@@ -28,16 +29,26 @@ inline float safe_log(float x)
 }
 
 // Shannon entropy over a dynamic vector
-inline float shannon_entropy(const std::vector<float> &p)
+inline float shannon_entropy(const std::vector<float> &p, const std::vector<uint32_t> &domain_bits)
 {
     float H = 0.0f;
-    for (float pi : p)
+    for (size_t w = 0; w < domain_bits.size(); ++w)
     {
-        if (pi > 0.0f)
-            H -= pi * safe_log(pi);
+        if(domain_bits[w] == 0)
+            continue;
+        for (size_t i = 0; i < 32 && (w * 32 + i) < p.size(); ++i)
+        {
+            if (domain_bits[w] & (1 << i))
+            {
+                float prob = p[w * 32 + i];
+                if (prob > 0.0f)
+                    H -= prob * safe_log(prob);
+            }
+        }
     }
     return H;
 }
+
 
 // Normalize; returns original sum
 inline float normalize(std::vector<float> &p)
@@ -53,23 +64,67 @@ inline float normalize(std::vector<float> &p)
     return s;
 }
 
-inline int weighted_sample(const std::vector<float> &p, std::mt19937 &rng)
+inline int weighted_sample_bits(
+    const std::vector<float> &priors,
+    const std::vector<uint32_t> &domain_bits,
+    std::mt19937 &rng)
 {
-    std::uniform_real_distribution<float> dist(0.0f, 1.0f);
-    float r = dist(rng);
-    float cum = 0.0f;
-    const int n = static_cast<int>(p.size());
-    for (int i = 0; i < n; ++i)
-    {
-        cum += p[i];
-        if (r <= cum)
-            return i;
+    const int nwords = static_cast<int>(domain_bits.size());
+    const int n = static_cast<int>(priors.size());
+
+    // 1. Compute total weight of active entries
+    float total = 0.0f;
+    for (int w = 0; w < nwords; ++w) {
+        uint32_t bits = domain_bits[w];
+        if (!bits) continue;
+        const int base = w * 32;
+        while (bits) {
+            int bit = ctz32(bits);
+            total += priors[base + bit];
+            bits &= bits - 1;
+        }
     }
-    for (int i = n - 1; i >= 0; --i)
-        if (p[i] > 0.0f)
-            return i;
-    return 0;
+    if (total <= 0.0f) return -1;
+
+    // 2. Pick threshold in [0, total)
+    std::uniform_real_distribution<float> dist(0.0f, total);
+    float r = dist(rng);
+
+    // 3. Walk again until threshold is crossed
+    float cum = 0.0f;
+    for (int w = 0; w < nwords; ++w) {
+        uint32_t bits = domain_bits[w];
+        if (!bits) continue;
+        const int base = w * 32;
+        while (bits) {
+            int bit = ctz32(bits);
+            cum += priors[base + bit];
+            if (r <= cum)
+                return base + bit;
+            bits &= bits - 1;
+        }
+    }
+    return -1; // Shouldn't get here if total > 0
 }
+
+
+// inline int weighted_sample(const std::vector<float> &p, std::mt19937 &rng)
+// {
+//     std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+//     float r = dist(rng);
+//     float cum = 0.0f;
+//     const int n = static_cast<int>(p.size());
+//     for (int i = 0; i < n; ++i)
+//     {
+//         cum += p[i];
+//         if (r <= cum)
+//             return i;
+//     }
+//     for (int i = n - 1; i >= 0; --i)
+//         if (p[i] > 0.0f)
+//             return i;
+//     return 0;
+// }
 
 // -------------------- Pattern data structures --------------------
 
@@ -113,7 +168,7 @@ struct PatternModel
     // Compatibility as bit masks: compat[k][a] is P bits packed in bytes
     // It essentially stores a P x P boolean compatability matrix for each direct offset k.
     // compat[k][a][b] == 1 means pattern b can be placed in direction k relative to a without conflict.
-    std::vector<std::vector<std::vector<uint64_t>>> compat; // [K][P][Pbits/64]
+    std::vector<std::vector<std::vector<uint32_t>>> compat; // [K][P][Pbits/32]
 
     bool is_compatible(int k, int a, int b) const
     {
@@ -121,9 +176,9 @@ struct PatternModel
             b >= static_cast<int>(patterns.size()))
             return false;
         const auto &mask = compat[k][a];
-        int byte_index = b >> 6;
-        int bit_index = b & 63;
-        return (mask[byte_index] & (uint64_t(1) << bit_index)) != 0;
+        int byte_index = b >> 5;
+        int bit_index = b & 31;
+        return (mask[byte_index] & (1 << bit_index)) != 0;
     }
 };
 
@@ -151,8 +206,7 @@ struct EmptyCell : public PatternCell
 
 struct SuperpositionCell : PatternCell
 {
-    std::vector<uint64_t> domain_bits; // (P+7)/8 bytes
-    std::vector<float> p;              // length P, for sampling
+    std::vector<uint32_t> domain_bits; // (P+31)/32 bytes
     float entropy = 0.0f;
     uint32_t version = 0; // if ~0, this cell is invalid
     Kind kind() const override
@@ -261,9 +315,9 @@ static PatternModel build_pattern_model_from_neighborhood(const Ref<VoxelDataVox
     for (int i = 0; i < P; ++i) model.priors[i] = total ? float(counts[i]) / float(total) : 0.0f;
 
     // 2) Compatibility per delta: compat_delta[D][P][words]
-    const int words_per_mask = (P + 63) / 64;
+    const int words_per_mask = (P + 31) / 32;
     model.compat.assign(model.D,
-        std::vector<std::vector<uint64_t>>(P, std::vector<uint64_t>(words_per_mask, 0)));
+        std::vector<std::vector<uint32_t>>(P, std::vector<uint32_t>(words_per_mask, 0)));
 
     for (int d = 0; d < model.D; ++d) {
         const Vector3i delta = ngh.center_deltas()[d];
@@ -271,7 +325,7 @@ static PatternModel build_pattern_model_from_neighborhood(const Ref<VoxelDataVox
             auto &mask = model.compat[d][a];
             for (int b = 0; b < P; ++b) {
                 if (patterns_compatible_delta(*model.ngh, model.patterns[a], model.patterns[b], delta)) {
-                    mask[b >> 6] |= (uint64_t(1) << (b & 63));
+                    mask[b >> 5] |= (1 << (b & 31));
                 }
             }
         }
@@ -608,14 +662,18 @@ void VoxelWorldWFCPatternGenerator::generate(RenderingDevice *rd, VoxelWorldRIDs
 
     std::priority_queue<HeapNode, std::vector<HeapNode>, HeapCompare> heap;
 
+    // --- configuration ---
+    const bool enable_union_wave = false;//true; // toggle stronger propagation
+
     // setup superposition cells
     normalize(model.priors); // ensure priors sum to 1.0
-    float priors_entropy = shannon_entropy(model.priors);
+    const size_t Pbits = model.priors.size();
+    const size_t Pwords = (Pbits + 31) / 32;
+    float priors_entropy = shannon_entropy(model.priors, std::vector<uint32_t>(Pwords, ~0u));
 
     auto init_superposition_from_priors = [&](int idx) -> SuperpositionCell * {
         auto sp = std::make_unique<SuperpositionCell>();
-        sp->p = model.priors; // copy
-        sp->domain_bits.resize((P + 63) / 64, ~0);
+        sp->domain_bits.resize(Pwords, ~0u);
         sp->entropy = priors_entropy;
         sp->version = 0;
         auto *raw = sp.get();
@@ -623,140 +681,192 @@ void VoxelWorldWFCPatternGenerator::generate(RenderingDevice *rd, VoxelWorldRIDs
         return raw;
     };
 
-    auto apply_compat = [&](SuperpositionCell &tgt, int k, int neighbor_pattern_id) -> bool {
-        const auto &mask = model.compat[k][neighbor_pattern_id];
-        bool any = false;
-        size_t nbits = model.priors.size();
-        size_t nwords = (nbits + 63) / 64; // rounded up for tail
+    // AND a precomputed mask into tgt; updates entropy/version and signals if any bits changed or contradiction
+    auto apply_mask = [&](SuperpositionCell &tgt, const std::vector<uint32_t> &mask) -> bool {
+        bool any_changed = false;
+        bool all_zero = true;
 
-        for (size_t w = 0; w < nwords; ++w)
-        {
-            uint64_t before = tgt.domain_bits[w];
-            uint64_t after = before & mask[w];
+        for (size_t w = 0; w < Pwords; ++w) {
+            uint32_t before = tgt.domain_bits[w];
+            uint32_t after = before & mask[w];
 
-            // If this is the last word and there’s a partial tail, zero out high bits
-            if (w == nwords - 1 && (nbits & 63))
-            {
-                uint64_t tailmask = (~0ULL) >> (64 - (nbits & 63));
+            // tail clamp for last partial word
+            if (w == Pwords - 1 && (Pbits & 31)) {
+                uint32_t tailmask = (~0u) >> (32 - (Pbits & 31));
                 after &= tailmask;
             }
 
-            if (after != before)
-            {
-                any = true;
-                size_t base = w * 64;
-                for (int i = 0; i < 64; ++i)
-                {
-                    size_t idx = base + i;
-                    if (idx >= nbits)
-                        break; // handles tail naturally
-                    if ((after & (1ULL << i)))
-                        tgt.p[idx] = model.priors[idx]; // reset to prior
-                    else
-                        tgt.p[idx] = 0.0f;
-                }
-            }
-
+            if (after != before) any_changed = true;
+            if (after) all_zero = false;
             tgt.domain_bits[w] = after;
         }
 
-        if (normalize(tgt.p) <= 0.0f)
-        {
-            tgt.version = (~0u) - 1;
-            return true;
+        if (all_zero) {
+            tgt.version = ~0u; // contradiction marker
+            return true;       // signal "changed" to trigger handling
         }
 
-        if (!any)
-            return false;
+        if (!any_changed) return false;
 
-        tgt.entropy = shannon_entropy(tgt.p);
+        tgt.entropy = shannon_entropy(model.priors, tgt.domain_bits);
         return true;
     };
 
-    auto init_from_single_neighbor = [&](int idx, int cond_index, int neighbor_pattern_id) -> SuperpositionCell * {
+    // Single-pattern propagation (existing behavior)
+    auto apply_compat_single = [&](SuperpositionCell &tgt, int d, int neighbor_pattern_id) -> bool {
+        const auto &mask = model.compat[d][neighbor_pattern_id];
+        return apply_mask(tgt, mask);
+    };
+
+    // scratch mask reused each call
+    std::vector<uint32_t> union_mask;
+    union_mask.resize(Pwords);
+
+    auto build_union_mask_from_bits = [&](int d, const std::vector<uint32_t> &bits) -> const std::vector<uint32_t>& {
+        std::fill(union_mask.begin(), union_mask.end(), 0u);
+
+        for (size_t w = 0; w < bits.size(); ++w) {
+            uint32_t word = bits[w];
+            if (!word) continue;
+
+            const int base = static_cast<int>(w << 5); // w*32
+            while (word) {
+                int bit = ctz32(word);        
+                const int pat = base + bit;
+                if (pat < Pbits) {
+                    const auto &cm = model.compat[d][pat];
+                    for (size_t ww = 0; ww < Pwords; ++ww)
+                        union_mask[ww] |= cm[ww];
+                }
+                // clear LSB
+                word &= (word - 1);
+            }
+        }
+        // mask tail in last word
+        if (Pbits & 31) {
+            uint32_t tailmask = (~0u) >> (32 - (Pbits & 31));
+            union_mask[Pwords - 1] &= tailmask;
+        }
+        return union_mask;
+    };
+
+
+    auto init_from_single_neighbor = [&](int idx, int d, int neighbor_pattern_id) -> SuperpositionCell * {
         auto *sp = init_superposition_from_priors(idx);
-        if (!sp)
-            return nullptr;
-        apply_compat(*sp, cond_index, neighbor_pattern_id);
-        if (sp->version == ~0u)
-        {
+        if (!sp) return nullptr;
+        apply_compat_single(*sp, d, neighbor_pattern_id);
+        if (sp->version == ~0u) {
             grid[idx].reset();
             return nullptr;
-        }          // true contradiction
-        return sp; // keep the cell even if no bits were removed
+        }
+        return sp;
     };
 
     uint64_t global_tick = 0;
 
+    // For strong propagation: a small work-queue and an in-queue marker
+    std::deque<int> wave_q;
+    std::vector<uint8_t> in_wave;
+    if (enable_union_wave) in_wave.assign(N, 0);
+
     // Seed: choose center-ish cell, init from priors
     int seed_idx = index_3d(Vector3i(grid_size.x / 2, grid_size.y / 2, grid_size.z / 2), grid_size);
-    if (seed_idx < 0 || seed_idx >= N)
-        seed_idx = 0;
+    if (seed_idx < 0 || seed_idx >= N) seed_idx = 0;
     SuperpositionCell *seed_sp = init_superposition_from_priors(seed_idx);
-    if (seed_sp)
-        heap.push(HeapNode{seed_sp->entropy, seed_idx, seed_sp->version, global_tick++});
+    if (seed_sp) heap.push(HeapNode{seed_sp->entropy, seed_idx, seed_sp->version, global_tick++});
 
-    int simple_timer_lol = 0;
     // Main loop
-    while (!heap.empty())// && simple_timer_lol++ < 10000) // limit iterations to prevent infinite loops
-    {
+    while (!heap.empty()) {
         HeapNode node = heap.top();
         heap.pop();
-        if (grid[node.index]->kind() != PatternCell::Kind::SUPERPOSITION)
-            continue;
+        if (grid[node.index]->kind() != PatternCell::Kind::SUPERPOSITION) continue;
         auto *sp = static_cast<SuperpositionCell *>(grid[node.index].get());
-        if (sp->version != node.version)
-            continue; // stale
+        if (sp->version != node.version) continue; // stale
 
         // Collapse
-        int pat_id = weighted_sample(sp->p, rng);
-        bool invalid = sp->version == ~0;
+        int pat_id = weighted_sample_bits(model.priors, sp->domain_bits, rng);
+        bool invalid = sp->version == ~0u;
         collapse_to_pattern(node.index, pat_id, invalid);
-        if (invalid)
-            continue;
+        if (invalid) continue;
 
         // Propagate to neighbors
         Vector3i pos = pos_from_index(node.index);
-        // const auto &offs = ngh.offsets();
         const auto &deltas = ngh.center_deltas();
-        const int D = deltas.size();
-        for (int d = 0; d < D; ++d)
-        {
+        const int D = static_cast<int>(deltas.size());
+
+        // Seed list of neighbors changed by the immediate single-pattern propagation
+        if (enable_union_wave) wave_q.clear();
+
+        for (int d = 0; d < D; ++d) {
             Vector3i np = pos + deltas[d];
-            if (!in_bounds(np, grid_size))
-                continue;
+            if (!in_bounds(np, grid_size)) continue;
             int nidx = index_3d(np, grid_size);
 
             auto kind = grid[nidx]->kind();
-            if (kind == PatternCell::Kind::EMPTY)
-            {
-                if (auto *tgt = init_from_single_neighbor(nidx, d, pat_id))
-                {
+            if (kind == PatternCell::Kind::EMPTY) {
+                if (auto *tgt = init_from_single_neighbor(nidx, d, pat_id)) {
                     heap.push({tgt->entropy, nidx, tgt->version, global_tick++});
+                    if (enable_union_wave && !in_wave[nidx]) { wave_q.push_back(nidx); in_wave[nidx] = 1; }
                 }
-            }
-            else if (kind == PatternCell::Kind::SUPERPOSITION)
-            {
+            } else if (kind == PatternCell::Kind::SUPERPOSITION) {
                 auto *tgt = static_cast<SuperpositionCell *>(grid[nidx].get());
-                bool changed = apply_compat(*tgt, d, pat_id);
-                if (changed)
-                {
+                bool changed = apply_compat_single(*tgt, d, pat_id);
+                if (changed) {
                     tgt->version += 1;
                     heap.push({tgt->entropy, nidx, tgt->version, global_tick++});
+                    if (enable_union_wave && tgt->version != ~0u && !in_wave[nidx]) {
+                        wave_q.push_back(nidx);
+                        in_wave[nidx] = 1;
+                    }
+                }
+            }
+        }
+
+        // Optional stronger wave propagation using union-of-compatibility from superpositions
+        if (enable_union_wave) {
+            while (!wave_q.empty()) {
+                int src_idx = wave_q.front();
+                wave_q.pop_front();
+                in_wave[src_idx] = 0;
+
+                if (!grid[src_idx] || grid[src_idx]->kind() != PatternCell::Kind::SUPERPOSITION) continue;
+                auto *src_sp = static_cast<SuperpositionCell *>(grid[src_idx].get());
+
+                Vector3i spos = pos_from_index(src_idx);
+                for (int d = 0; d < D; ++d) {
+                    Vector3i np = spos + deltas[d];
+                    if (!in_bounds(np, grid_size)) continue;
+                    int nidx = index_3d(np, grid_size);
+
+                    if (!grid[nidx] || grid[nidx]->kind() != PatternCell::Kind::SUPERPOSITION) continue;
+                    auto *tgt = static_cast<SuperpositionCell *>(grid[nidx].get());
+
+                    // Union mask from src -> tgt along delta d
+                    const auto &um = build_union_mask_from_bits(d, src_sp->domain_bits);
+                    bool changed = apply_mask(*tgt, um);
+                    if (changed) {
+                        tgt->version += 1;
+                        heap.push({tgt->entropy, nidx, tgt->version, global_tick++});
+
+                        // Keep propagating if still a superposition and not already queued
+                        if (tgt->version != ~0u && !in_wave[nidx]) {
+                            wave_q.push_back(nidx);
+                            in_wave[nidx] = 1;
+                        }
+                    }
                 }
             }
         }
     }
 
+
     // Convert to output voxels (center voxel of each collapsed pattern)
     std::vector<Voxel> result_voxels(voxel_world_rids.voxel_count, Voxel::create_air_voxel());
-
     for (int i = 0; i < N; ++i)
     {
         int result_idx = properties.posToVoxelIndex(pos_from_index(i));
         if (result_idx < 0 || result_idx >= static_cast<int>(result_voxels.size()))
             continue;
-
         if (grid[i]->kind() == PatternCell::Kind::COLLAPSED)
         {
             auto *cv = static_cast<CollapsedCell *>(grid[i].get());
