@@ -8,11 +8,12 @@
 #include <godot_cpp/variant/rid.hpp>
 
 #include "voxel_world/data/voxel_data.h"
+#include "../voxel_world_generator_cpu_pass.h"
 
 using namespace godot;
 
-class VoxelWorldDataLoader : public VoxelWorldGenerator {
-    GDCLASS(VoxelWorldDataLoader, VoxelWorldGenerator)
+class VoxelWorldDataLoader : public VoxelWorldGeneratorCPUPass {
+    GDCLASS(VoxelWorldDataLoader, VoxelWorldGeneratorCPUPass)
 
 public:
     VoxelWorldDataLoader() = default;
@@ -24,7 +25,7 @@ public:
     void set_voxel_scale(float scale) { voxel_scale = scale; }
     float get_voxel_scale() const { return voxel_scale; }
 
-    void generate(RenderingDevice* rd, VoxelWorldRIDs& voxel_world_rids, const VoxelWorldProperties& properties) override;
+    bool generate(std::vector<Voxel> &voxel_data, const Vector3i bounds_min, const Vector3i bounds_max, const VoxelWorldProperties &properties) override;
 
     static void _bind_methods() {
         ClassDB::bind_method(D_METHOD("set_voxel_data", "path"), &VoxelWorldDataLoader::set_voxel_data);

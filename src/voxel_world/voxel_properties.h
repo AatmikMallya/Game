@@ -32,7 +32,10 @@ namespace godot
         bool operator!=(const Voxel &other) const {
             return data != other.data;
         }
-        
+
+        inline bool is_air() const { return is_type(VOXEL_TYPE_AIR); }
+        inline bool is_type(int type) const { return ((data >> 24) & 0xFF) == (type && 0xFF); }
+
         // static values and methods, defined the same as on the GPU
         static const unsigned int VOXEL_TYPE_AIR = 0;
         static const unsigned int VOXEL_TYPE_SOLID = 1;

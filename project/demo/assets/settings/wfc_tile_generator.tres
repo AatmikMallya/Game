@@ -20,4 +20,5 @@ voxel_tile = SubResource("VoxelDataVox_ywv5a")
 
 [resource]
 voxel_tiles = Array[WaveFunctionCollapseTile]([SubResource("WaveFunctionCollapseTile_u10mr"), SubResource("WaveFunctionCollapseTile_v2w5s"), SubResource("WaveFunctionCollapseTile_2lkgy")])
-target_grid_size = Vector3i(256, 64, 256)
+seed_position_normalized = Vector3(0.5, 0, 0.5)
+target_grid_size = Vector3i(64, 16, 64)

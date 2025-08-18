@@ -336,18 +336,17 @@ bool update_from_neighbor(SuperpositionVoxel &tgt, const WFCModel &model,
     return any;
 }*/
 
-void VoxelWorldWFCAdjacencyGenerator::generate(RenderingDevice *rd, VoxelWorldRIDs &voxel_world_rids,
-                                      const VoxelWorldProperties &properties)
+bool VoxelWorldWFCAdjacencyGenerator::generate(std::vector<Voxel> &result_voxels, const Vector3i bounds_min, const Vector3i bounds_max, const VoxelWorldProperties &properties)
 {
     if (voxel_data.is_null())
     {
         UtilityFunctions::printerr("Voxel data is not set for WFC generator.");
-        return;
+        return false;
     }
     voxel_data->load();
 
     // Decide output size
-    Vector3i out_size = Vector3i(properties.grid_size.x, properties.grid_size.y, properties.grid_size.z);
+    Vector3i out_size = bounds_max - bounds_min;
     auto grid_size = target_grid_size.min(out_size);
 
     Vector3i training_size = voxel_data->get_size();
@@ -508,13 +507,10 @@ void VoxelWorldWFCAdjacencyGenerator::generate(RenderingDevice *rd, VoxelWorldRI
         }
     }
 
-    // Convert to output voxels
-    std::vector<Voxel> result_voxels = std::vector<Voxel>(voxel_world_rids.voxel_count, Voxel::create_air_voxel());
-
     for (int i = 0; i < N; ++i)
     {
         // TODO maybe add offsets/scale depending on what we want.
-        int result_idx = properties.posToVoxelIndex(pos_from_index(i));
+        int result_idx = properties.posToVoxelIndex(pos_from_index(i) + bounds_min);
         if (result_idx < 0 || result_idx >= result_voxels.size())
             continue;
 
@@ -533,24 +529,8 @@ void VoxelWorldWFCAdjacencyGenerator::generate(RenderingDevice *rd, VoxelWorldRI
                     Voxel::create_voxel(Voxel::VOXEL_TYPE_SOLID, voxel_data->get_palette()[id - 1]);
             }
         }
-        // else
-        // {
-        //     // Uncollapsed/empty: leave as air (or sample priors to fill)
-        //     // Optional: finalize by sampling from remaining superposition
-        //     if (grid[i]->kind() == WFCVoxel::Kind::SUPERPOSITION)
-        //     {
-        //         auto *spv = static_cast<SuperpositionVoxel *>(grid[i].get());
-        //         int id = weighted_sample(spv->p, rng);
-        //         if (id > 0)
-        //         {
-        //             result_voxels[result_idx] =
-        //                 Voxel::create_voxel(Voxel::VOXEL_TYPE_SOLID, voxel_data->get_palette()[id - 1]);
-        //         }
-        //     }
-        // }
-
-        // result_voxels[result_idx] = Voxel::create_voxel(Voxel::VOXEL_TYPE_SOLID, voxel_data->get_palette()[0]);
     }
 
-    voxel_world_rids.set_voxel_data(result_voxels);
+    return true;
+    // voxel_world_rids.set_voxel_data(result_voxels);
 }

@@ -583,14 +583,13 @@ std::vector<CompatMismatch> validate_compat(const PatternModel &model)
 }
 
 // -------------------- Generator --------------------
-
-void VoxelWorldWFCPatternGenerator::generate(RenderingDevice *rd, VoxelWorldRIDs &voxel_world_rids,
-                                             const VoxelWorldProperties &properties)
+bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, const Vector3i bounds_min, const Vector3i bounds_max, const VoxelWorldProperties &properties)
+// std::vector<Voxel> VoxelWorldWFCPatternGenerator::generate(const Vector3i bounds_min, const Vector3i bounds_max, const VoxelWorldProperties &properties)
 {
     if (voxel_data.is_null())
     {
         ERR_PRINT("Voxel data is not set for the WFC pattern generator.");
-        return;
+        return false;
     }
     voxel_data->load();
 
@@ -606,7 +605,7 @@ void VoxelWorldWFCPatternGenerator::generate(RenderingDevice *rd, VoxelWorldRIDs
     if (P == 0)
     {
         ERR_PRINT("PatternWFC: No patterns to work with.");
-        return;
+        return false;
     }
 
     // debug_place_and_print_patterns(model, ngh, voxel_world_rids, properties);
@@ -859,12 +858,9 @@ void VoxelWorldWFCPatternGenerator::generate(RenderingDevice *rd, VoxelWorldRIDs
         }
     }
 
-
-    // Convert to output voxels (center voxel of each collapsed pattern)
-    std::vector<Voxel> result_voxels(voxel_world_rids.voxel_count, Voxel::create_air_voxel());
     for (int i = 0; i < N; ++i)
     {
-        int result_idx = properties.posToVoxelIndex(pos_from_index(i));
+        int result_idx = properties.posToVoxelIndex(pos_from_index(i) + bounds_min);
         if (result_idx < 0 || result_idx >= static_cast<int>(result_voxels.size()))
             continue;
         if (grid[i]->kind() == PatternCell::Kind::COLLAPSED)
@@ -882,5 +878,6 @@ void VoxelWorldWFCPatternGenerator::generate(RenderingDevice *rd, VoxelWorldRIDs
         }
     }
 
-    voxel_world_rids.set_voxel_data(result_voxels);
+    return true;
+    // voxel_world_rids.set_voxel_data(result_voxels);
 }

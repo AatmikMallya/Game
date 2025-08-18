@@ -22,7 +22,7 @@ public:
     void set_voxel_data(const Ref<VoxelDataVox>& data) { voxel_data = data; }
     Ref<VoxelDataVox> get_voxel_data() const { return voxel_data; }
 
-    void generate(RenderingDevice* rd, VoxelWorldRIDs& voxel_world_rids, const VoxelWorldProperties& properties) override;
+    bool generate(std::vector<Voxel> &result_voxels, const Vector3i bounds_min, const Vector3i bounds_max, const VoxelWorldProperties &properties) override;
 
     static void _bind_methods() {
         ClassDB::bind_method(D_METHOD("set_voxel_data", "path"), &VoxelWorldWFCAdjacencyGenerator::set_voxel_data);

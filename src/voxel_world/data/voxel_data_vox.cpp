@@ -57,6 +57,17 @@ Error VoxelDataVox::load() {
         UtilityFunctions::printerr("VoxelDataVox: cannot open: ", file_path);
         return ERR_CANT_OPEN;
     }
+    // Setup filter
+    std::unordered_map<int, int> filters_map{};
+    for (int i = 0; i < filters.size(); ++i) {
+        Ref<VoxelDataVoxFilter> f = filters[i];
+        if (f.is_null()) continue;
+
+        PackedInt32Array ids = f->get_palette_indices();
+        for (int pid : ids) {
+            filters_map.emplace(pid, f->get_type());
+        }
+    }
 
     auto read_u32 = [&]() -> uint32_t { return f->get_32(); };
 
@@ -144,12 +155,35 @@ Error VoxelDataVox::load() {
         return ((size_t)z * size.y + (size_t)y) * size.x + (size_t)x;
     };
 
+    std::unordered_map<int, std::pair<int, Color>> palette_counts;
+
     for (const auto &p : points) {
         if (p.x >= size.x || p.y >= size.y || p.z >= size.z || p.i <= 0) continue;
+
         uint8_t pal_index = p.i;
         Color c = palette[pal_index ? pal_index - 1 : 0];
-        voxels[index3_local(p.x, p.y, p.z)] = Voxel::create_voxel(Voxel::VOXEL_TYPE_SOLID, c);
+
+        // Count occurrences
+        auto &entry = palette_counts[pal_index];
+        entry.first += 1;       // increment count
+        entry.second = c;       // store/overwrite color (safe, same for same index)
+
+        int type = Voxel::VOXEL_TYPE_SOLID;
+        if (filters_map.find(pal_index) != filters_map.end())
+            type = filters_map.at(pal_index);
+
+        voxels[index3_local(p.x, p.y, p.z)] = Voxel::create_voxel(type, c);
         voxel_indices[index3_local(p.x, p.y, p.z)] = pal_index;
     }
+
+    if(print_voxel_palette_counts) 
+        for (const auto &kv : palette_counts) {
+            int pal_index = kv.first;
+            int count = kv.second.first;
+            const Color &c = kv.second.second;
+
+            UtilityFunctions::print(String("{0}: {1}x  {2}")
+                .format(Array::make(pal_index, count, c)));
+        }
     return OK;
 }

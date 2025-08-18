@@ -212,6 +212,14 @@ inline int weighted_sample_bits(const std::vector<float> &priors, const std::vec
     return -1;
 }
 
+static bool is_all_air_face(const FaceSig &sig) {
+    for (int i = 0; i < sig.data.size(); ++i) {
+        if (!sig.data[i].is_air())
+            return false;
+    }
+    return true;
+}
+
 } // namespace
 
 // ---------------------------------------------------------------
@@ -291,12 +299,13 @@ bool VoxelWorldWFCTileGenerator::prepare_voxel_tiles(const TypedArray<WaveFuncti
         return false;
     }
 
-    // Priors (normalized)
+    // Priors
     g_model.priors.resize(P);
-    for (size_t p = 0; p < P; ++p) g_model.priors[p] = std::max(0.0f, g_model.patterns[p].weight);
+    for (size_t p = 0; p < P; ++p)
+        g_model.priors[p] = std::max(0.0f, g_model.patterns[p].weight);
     normalize(g_model.priors);
 
-    // Build compatibility masks: compat[dir][neighbor_pattern] = bitmask of allowed patterns in target
+    // Build compatibility masks
     const size_t Pwords = (P + 31) / 32;
     for (int d = 0; d < 6; ++d) {
         g_model.compat[d].assign(P, std::vector<uint32_t>(Pwords, 0u));
@@ -306,8 +315,12 @@ bool VoxelWorldWFCTileGenerator::prepare_voxel_tiles(const TypedArray<WaveFuncti
         for (size_t q = 0; q < P; ++q) {
             for (int d = 0; d < 6; ++d) {
                 int od = opposite_dir(d);
+                // Skip if either face is all air
+                // if (is_all_air_face(g_model.patterns[p].faces[d])) {
+                //     continue;
+                // }
+
                 if (g_model.patterns[p].faces[d].equals(g_model.patterns[q].faces[od])) {
-                    // If neighbour is p on side d, target can be q
                     std::vector<uint32_t> &mask = g_model.compat[d][p];
                     size_t w = q >> 5;
                     uint32_t bit = 1u << (q & 31);
@@ -324,14 +337,14 @@ bool VoxelWorldWFCTileGenerator::prepare_voxel_tiles(const TypedArray<WaveFuncti
 // VoxelWorldWFCTileGenerator::generate
 // ---------------------------------------------------------------
 
-void VoxelWorldWFCTileGenerator::generate(RenderingDevice *rd, VoxelWorldRIDs &voxel_world_rids, const VoxelWorldProperties &properties) {
-    if (!prepare_voxel_tiles(voxel_tiles)) return;
+bool VoxelWorldWFCTileGenerator::generate(std::vector<Voxel> &result_voxels, const Vector3i bounds_min, const Vector3i bounds_max, const VoxelWorldProperties &properties) {
+    if (!prepare_voxel_tiles(voxel_tiles)) return false;
     
     Vector3i grid_size = target_grid_size.min(Vector3i(properties.grid_size.x, properties.grid_size.y, properties.grid_size.z));    
     grid_size = grid_size / g_model.tile_size;
     if (grid_size.x <= 0 || grid_size.y <= 0 || grid_size.z <= 0) {
         ERR_PRINT("Grid size too small for tile size.");
-        return;
+        return false;
     }
 
     const int N = grid_size.x * grid_size.y * grid_size.z;
@@ -448,7 +461,6 @@ void VoxelWorldWFCTileGenerator::generate(RenderingDevice *rd, VoxelWorldRIDs &v
         cl->pattern_id = invalid ? -1 : pattern_id;
         cl->is_debug   = invalid || (pattern_id < 0);
         grid[idx] = std::move(cl);
-        UtilityFunctions::print("yo!!");
     };
 
     auto push_sp = [&](int idx, SuperpositionCell *sp) {
@@ -457,14 +469,13 @@ void VoxelWorldWFCTileGenerator::generate(RenderingDevice *rd, VoxelWorldRIDs &v
 
     // Seed at grid center (fallback to 0)
     {
-        int seed_idx = index_3d({grid_size.x/2, grid_size.y/2, grid_size.z/2}, grid_size);
+        UtilityFunctions::print((Vector3(grid_size) * seed_position_normalized).floor());
+        int seed_idx = index_3d((Vector3(grid_size) * seed_position_normalized).floor(), grid_size);
         if (seed_idx < 0 || seed_idx >= N) seed_idx = 0;
         if (auto *seed_sp = init_superposition_from_priors(seed_idx)) {
             push_sp(seed_idx, seed_sp);
         }
     }
-
-    UtilityFunctions::print(grid_size);
 
     // ---------------------- Single while-loop WFC ----------------------
     while (!heap.empty()) {
@@ -511,9 +522,6 @@ void VoxelWorldWFCTileGenerator::generate(RenderingDevice *rd, VoxelWorldRIDs &v
         }
     }
 
-    // ---------------------- Write back voxels ----------------------
-    std::vector<Voxel> result_voxels(voxel_world_rids.voxel_count, Voxel::create_air_voxel());
-
     for (int i = 0; i < N; ++i) {
         if (!grid[i] || grid[i]->kind() != PatternCell::Kind::COLLAPSED) continue;
 
@@ -551,14 +559,17 @@ void VoxelWorldWFCTileGenerator::generate(RenderingDevice *rd, VoxelWorldRIDs &v
                         cell.y * g_model.tile_size.y + ly,
                         cell.z * g_model.tile_size.z + lz
                     };
-                    int out_idx = properties.posToVoxelIndex(world);
+                    int out_idx = properties.posToVoxelIndex(world + bounds_min);
                     if (out_idx < 0 || out_idx >= static_cast<int>(result_voxels.size())) continue;
 
                     // map oriented -> original coords for sampling
                     Vector3i src = oriented_to_original({lx, ly, lz}, g_model.tile_size, pat.rot, pat.flip);
+                    
                     result_voxels[out_idx] = vox->get_voxel_at(src);
                 }
     }
 
-    voxel_world_rids.set_voxel_data(result_voxels);
+    return true;
+
+    // voxel_world_rids.set_voxel_data(result_voxels);
 }

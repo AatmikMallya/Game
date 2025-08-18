@@ -7,12 +7,13 @@
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/rid.hpp>
 
+#include "../../voxel_world_generator_cpu_pass.h"
 #include "voxel_world/data/voxel_data_vox.h"
 
 using namespace godot;
 
-class WaveFunctionCollapseGenerator : public VoxelWorldGenerator {
-    GDCLASS(WaveFunctionCollapseGenerator, VoxelWorldGenerator)
+class WaveFunctionCollapseGenerator : public VoxelWorldGeneratorCPUPass {
+    GDCLASS(WaveFunctionCollapseGenerator, VoxelWorldGeneratorCPUPass)
 
 public:
     void set_target_grid_size(const Vector3i &size) { target_grid_size = size; }
@@ -21,7 +22,7 @@ public:
     void set_voxel_scale(float scale) { voxel_scale = scale; }
     float get_voxel_scale() const { return voxel_scale; }
 
-    virtual void generate(RenderingDevice* rd, VoxelWorldRIDs& voxel_world_rids, const VoxelWorldProperties& properties) = 0;
+    virtual bool generate(std::vector<Voxel> &result_voxels, const Vector3i bounds_min, const Vector3i bounds_max, const VoxelWorldProperties &properties) = 0;
 
     static void _bind_methods() {
         ClassDB::bind_method(D_METHOD("set_voxel_scale", "scale"), &WaveFunctionCollapseGenerator::set_voxel_scale);
