@@ -39,9 +39,16 @@ void VoxelWorldCollider::init(RenderingDevice *rd, VoxelWorldRIDs& voxel_world_r
         Vector4i(_collider_size.x, _collider_size.y, _collider_size.z, 0), // size
     };
 
-    int voxel_data_length = std::ceil((_collider_size.x * _collider_size.y * _collider_size.z) / 8.0f);
+    // Number of voxels
+    const int64_t nvox = int64_t(_collider_size.x) * _collider_size.y * _collider_size.z;
+
+    // Storage as 32-bit words (1 bit per voxel)
+    const int64_t uint_count = (nvox + 31) / 32;            // ceil(nvox / 32)
+    const int64_t byte_size  = uint_count * sizeof(uint32_t);
+
     PackedByteArray collider_voxel_data;
-    collider_voxel_data.resize(voxel_data_length);
+    collider_voxel_data.resize((int)byte_size);
+    collider_voxel_data.fill(0);
 
     _fetch_data_shader =
         new ComputeShader("res://addons/voxel_playground/src/shaders/voxel_edit/fetch_solid_mask.glsl", rd);
@@ -112,16 +119,16 @@ void VoxelWorldCollider::onDataFetched(const PackedByteArray &data)
             {
                 Vector3i ipos(x, y, z);
                 Vector3 pos = scale * Vector3(x, y, z) + collider_offset;
-                bool value = isVoxelAir(ipos);
-                if (x > 0 && (value ^ isVoxelAir(Vector3i(x - 1, y, z))))
+                bool value = is_voxel_air(ipos);
+                if (x > 0 && (value ^ is_voxel_air(Vector3i(x - 1, y, z))))
                 {
                     addQuad(pos, 0, value);
                 }
-                if (y > 0 && (value ^ isVoxelAir(Vector3i(x, y - 1, z))))
+                if (y > 0 && (value ^ is_voxel_air(Vector3i(x, y - 1, z))))
                 {
                     addQuad(pos, 1, value);
                 }
-                if (z > 0 && (value ^ isVoxelAir(Vector3i(x, y, z - 1))))
+                if (z > 0 && (value ^ is_voxel_air(Vector3i(x, y, z - 1))))
                 {
                     addQuad(pos, 2, value);
                 }
@@ -152,9 +159,6 @@ void VoxelWorldCollider::update(Vector3i position)
     collider_offset = Vector3(position.x, position.y, position.z) * scale;
     _collider_params.bounds_min = Vector4i(position.x, position.y, position.z, 0);
 
-    // UtilityFunctions::print(position);
-
-    // raycast
     _fetch_data_shader->update_storage_buffer_uniform(_collider_params_rid, _collider_params.to_packed_byte_array());
 
     const Vector3 group_size = Vector3(8, 8, 8);
@@ -170,23 +174,13 @@ void VoxelWorldCollider::update(Vector3i position)
     // VoxelEditParams *params = reinterpret_cast<VoxelEditParams *>(arr.ptrw());
 }
 
-bool VoxelWorldCollider::isVoxelAir(Vector3i pos)
+bool VoxelWorldCollider::is_voxel_air(Vector3i pos)
 {
     unsigned int index = pos.x + pos.y * _collider_params.bounds_size.x +
                          pos.z * _collider_params.bounds_size.x * _collider_params.bounds_size.y;
     unsigned int bit_index = index % 32;
     unsigned int data_index = index / 32;
-
+    
+    if (data_index >= _collider_voxel_data.size()) return true;
     return ((_collider_voxel_data[data_index] & (1u << bit_index)) != 0);
 }
-
-// bool VoxelWorldCollider::isVoxelAir(Vector3i pos)
-// {
-//     // return pos.x + pos.y + pos.z < 8;
-
-//     unsigned int index = pos.x + pos.y * _collider_params.bounds_size.x +
-//                          pos.z * _collider_params.bounds_size.x * _collider_params.bounds_size.y;
-//     unsigned int bit_index = index % 8;
-//     unsigned int data_index = index / 8;
-//     return (_collider_voxel_data[data_index] & (1 << bit_index)) != 0;
-// }

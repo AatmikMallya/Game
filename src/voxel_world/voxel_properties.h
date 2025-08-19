@@ -138,7 +138,7 @@ namespace godot
                 (localPos.z * BRICK_SIZE * BRICK_SIZE));
         }
 
-        unsigned int posToVoxelIndex(Vector3i grid_pos) const {
+        unsigned int pos_to_voxel_index(Vector3i grid_pos) const {
             if (!isValidPos(grid_pos)) return 0;
             return getDefaultBrickVoxelPointer(grid_pos) + getVoxelIndexInBrick(grid_pos);
         }

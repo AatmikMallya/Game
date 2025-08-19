@@ -510,7 +510,7 @@ bool VoxelWorldWFCAdjacencyGenerator::generate(std::vector<Voxel> &result_voxels
     for (int i = 0; i < N; ++i)
     {
         // TODO maybe add offsets/scale depending on what we want.
-        int result_idx = properties.posToVoxelIndex(pos_from_index(i) + bounds_min);
+        int result_idx = properties.pos_to_voxel_index(pos_from_index(i) + bounds_min);
         if (result_idx < 0 || result_idx >= result_voxels.size())
             continue;
 

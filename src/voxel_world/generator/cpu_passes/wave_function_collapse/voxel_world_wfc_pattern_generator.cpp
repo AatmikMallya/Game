@@ -377,7 +377,7 @@ void debug_place_and_print_patterns(PatternModel &model, const Neighborhood &ngh
         for (int k = 0; k < ngh.get_K() + 1; ++k)
         {
             Vector3i xyz = Vector3i(1, 1, 1) + ((k == 0) ? Vector3i(0, 0, 0) : ngh.offsets()[k - 1]);
-            int idx = properties.posToVoxelIndex(cursor + xyz);
+            int idx = properties.pos_to_voxel_index(cursor + xyz);
             result_voxels[idx] = pat.voxels[k];
         }
 
@@ -521,7 +521,7 @@ void debug_place_pattern_pairs(PatternModel &model, const Neighborhood &ngh, Vox
         {
             Vector3i local = (slot == 0) ? Vector3i(0, 0, 0) : ngh.offsets()[slot - 1];
             Vector3i pos_world = cursor + (local + Vector3i(1, 1, 1)); // center offset in block
-            int idx = properties.posToVoxelIndex(pos_world);
+            int idx = properties.pos_to_voxel_index(pos_world);
             if (idx >= 0 && idx < (int)result_voxels.size())
                 result_voxels[idx] = model.patterns[a].voxels[slot];
         }
@@ -532,7 +532,7 @@ void debug_place_pattern_pairs(PatternModel &model, const Neighborhood &ngh, Vox
         {
             Vector3i local = (slot == 0) ? Vector3i(0, 0, 0) : ngh.offsets()[slot - 1];
             Vector3i pos_world = b_origin + local;
-            int idx = properties.posToVoxelIndex(pos_world);
+            int idx = properties.pos_to_voxel_index(pos_world);
             if (idx >= 0 && idx < (int)result_voxels.size())
                 result_voxels[idx] = model.patterns[b].voxels[slot];
         }
@@ -860,7 +860,7 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
 
     for (int i = 0; i < N; ++i)
     {
-        int result_idx = properties.posToVoxelIndex(pos_from_index(i) + bounds_min);
+        int result_idx = properties.pos_to_voxel_index(pos_from_index(i) + bounds_min);
         if (result_idx < 0 || result_idx >= static_cast<int>(result_voxels.size()))
             continue;
         if (grid[i]->kind() == PatternCell::Kind::COLLAPSED)

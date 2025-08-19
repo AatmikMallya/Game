@@ -18,7 +18,7 @@ bool VoxelWorldDataLoader::generate(std::vector<Voxel> &voxels, const Vector3i b
             for (int z = 0; z < size.z; ++z) {
                 Voxel voxel = voxel_data->get_voxel_at((Vector3(x, y, z) / voxel_scale).floor());
                 
-                unsigned int voxel_index = properties.posToVoxelIndex(Vector3i(x, y, z) + bounds_min);
+                unsigned int voxel_index = properties.pos_to_voxel_index(Vector3i(x, y, z) + bounds_min);
                 
                 voxels[voxel_index] = voxel;
             }
