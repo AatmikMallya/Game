@@ -19,19 +19,56 @@ public:
     VoxelWorldWFCPatternGenerator() = default;
     ~VoxelWorldWFCPatternGenerator() override = default;
 
+    // Existing voxel_data accessors
     void set_voxel_data(const Ref<VoxelData>& data) { voxel_data = data; }
     Ref<VoxelData> get_voxel_data() const { return voxel_data; }
+
+    // New getters/setters
+    void set_seed_position_normalized(const Vector3 &pos) { seed_position_normalized = pos; }
+    Vector3 get_seed_position_normalized() const { return seed_position_normalized; }
+
+    void set_enable_superposition_propagation(bool enable) { enable_superposition_propagation = enable; }
+    bool get_enable_superposition_propagation() const { return enable_superposition_propagation; }
+
+    void set_show_contradictions(bool show) { show_contradictions = show; }
+    bool get_show_contradictions() const { return show_contradictions; }
+
+    void set_only_replace_air(bool only_air) { only_replace_air = only_air; }
+    bool get_only_replace_air() const { return only_replace_air; }
 
     bool generate(std::vector<Voxel> &result_voxels, const Vector3i bounds_min, const Vector3i bounds_max, const VoxelWorldProperties &properties) override;
 
     static void _bind_methods() {
-        ClassDB::bind_method(D_METHOD("set_voxel_data", "path"), &VoxelWorldWFCPatternGenerator::set_voxel_data);
+        // Existing voxel_data binding
+        ClassDB::bind_method(D_METHOD("set_voxel_data", "data"), &VoxelWorldWFCPatternGenerator::set_voxel_data);
         ClassDB::bind_method(D_METHOD("get_voxel_data"), &VoxelWorldWFCPatternGenerator::get_voxel_data);
         ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "voxel_data", PROPERTY_HINT_RESOURCE_TYPE, "VoxelData"), "set_voxel_data", "get_voxel_data");
+
+        // New bindings
+        ClassDB::bind_method(D_METHOD("set_seed_position_normalized", "pos"), &VoxelWorldWFCPatternGenerator::set_seed_position_normalized);
+        ClassDB::bind_method(D_METHOD("get_seed_position_normalized"), &VoxelWorldWFCPatternGenerator::get_seed_position_normalized);
+        ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "seed_position_normalized"), "set_seed_position_normalized", "get_seed_position_normalized");
+
+        ClassDB::bind_method(D_METHOD("set_enable_superposition_propagation", "enable"), &VoxelWorldWFCPatternGenerator::set_enable_superposition_propagation);
+        ClassDB::bind_method(D_METHOD("get_enable_superposition_propagation"), &VoxelWorldWFCPatternGenerator::get_enable_superposition_propagation);
+        ADD_PROPERTY(PropertyInfo(Variant::BOOL, "enable_superposition_propagation"), "set_enable_superposition_propagation", "get_enable_superposition_propagation");
+
+        ClassDB::bind_method(D_METHOD("set_show_contradictions", "show"), &VoxelWorldWFCPatternGenerator::set_show_contradictions);
+        ClassDB::bind_method(D_METHOD("get_show_contradictions"), &VoxelWorldWFCPatternGenerator::get_show_contradictions);
+        ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_contradictions"), "set_show_contradictions", "get_show_contradictions");
+
+        ClassDB::bind_method(D_METHOD("set_only_replace_air", "only_air"), &VoxelWorldWFCPatternGenerator::set_only_replace_air);
+        ClassDB::bind_method(D_METHOD("get_only_replace_air"), &VoxelWorldWFCPatternGenerator::get_only_replace_air);
+        ADD_PROPERTY(PropertyInfo(Variant::BOOL, "only_replace_air"), "set_only_replace_air", "get_only_replace_air");
     }
 
 private:
     Ref<VoxelData> voxel_data;
+
+    Vector3 seed_position_normalized = Vector3(0.5, 0.5, 0.5);
+    bool enable_superposition_propagation = true;
+    bool show_contradictions = true;
+    bool only_replace_air = true;
 };
 
 #endif // VOXEL_WORLD_WFC_PATTERN_GENERATOR_H

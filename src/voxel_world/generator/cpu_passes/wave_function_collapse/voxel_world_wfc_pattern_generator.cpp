@@ -13,9 +13,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include "utility/bit_logic.h"
 #include "voxel_world_wfc_pattern_generator.h"
 #include "wfc_neighborhood.h"
-#include "utility/bit_logic.h"
 
 using namespace godot;
 
@@ -34,7 +34,7 @@ inline float shannon_entropy(const std::vector<float> &p, const std::vector<uint
     float H = 0.0f;
     for (size_t w = 0; w < domain_bits.size(); ++w)
     {
-        if(domain_bits[w] == 0)
+        if (domain_bits[w] == 0)
             continue;
         for (size_t i = 0; i < 32 && (w * 32 + i) < p.size(); ++i)
         {
@@ -48,7 +48,6 @@ inline float shannon_entropy(const std::vector<float> &p, const std::vector<uint
     }
     return H;
 }
-
 
 // Normalize; returns original sum
 inline float normalize(std::vector<float> &p)
@@ -64,27 +63,30 @@ inline float normalize(std::vector<float> &p)
     return s;
 }
 
-inline int weighted_sample_bits(
-    const std::vector<float> &priors,
-    const std::vector<uint32_t> &domain_bits,
-    std::mt19937 &rng)
+inline int weighted_sample_bits(const std::vector<float> &priors, const std::vector<uint32_t> &domain_bits,
+                                std::mt19937 &rng)
 {
     const int nwords = static_cast<int>(domain_bits.size());
     const int n = static_cast<int>(priors.size());
 
     // 1. Compute total weight of active entries
     float total = 0.0f;
-    for (int w = 0; w < nwords; ++w) {
+    for (int w = 0; w < nwords; ++w)
+    {
         uint32_t bits = domain_bits[w];
-        if (!bits) continue;
+        if (!bits)
+            continue;
         const int base = w * 32;
-        while (bits) {
+        while (bits)
+        {
             int bit = ctz32(bits);
-            total += priors[base + bit];
+            int idx = base + bit;
+            if (idx < n) total += priors[idx];
             bits &= bits - 1;
         }
     }
-    if (total <= 0.0f) return -1;
+    if (total <= 0.0f)
+        return -1;
 
     // 2. Pick threshold in [0, total)
     std::uniform_real_distribution<float> dist(0.0f, total);
@@ -92,21 +94,25 @@ inline int weighted_sample_bits(
 
     // 3. Walk again until threshold is crossed
     float cum = 0.0f;
-    for (int w = 0; w < nwords; ++w) {
+    for (int w = 0; w < nwords; ++w)
+    {
         uint32_t bits = domain_bits[w];
-        if (!bits) continue;
+        if (!bits)
+            continue;
         const int base = w * 32;
-        while (bits) {
+        while (bits)
+        {
             int bit = ctz32(bits);
-            cum += priors[base + bit];
-            if (r <= cum)
-                return base + bit;
+            int idx = base + bit;
+            if (idx < n) {
+                cum += priors[idx];
+                if (r <= cum) return idx;
+            }
             bits &= bits - 1;
         }
     }
     return -1; // Shouldn't get here if total > 0
 }
-
 
 // inline int weighted_sample(const std::vector<float> &p, std::mt19937 &rng)
 // {
@@ -158,8 +164,8 @@ struct PatternKeyEq
 
 struct PatternModel
 {
-    int K = 0; //amount of offsets
-    int D = 0; //amount of center deltas
+    int K = 0;                         // amount of offsets
+    int D = 0;                         // amount of center deltas
     const Neighborhood *ngh = nullptr; // not owned
 
     std::vector<Pattern> patterns; // size P
@@ -239,11 +245,13 @@ inline bool in_bounds(const Vector3i &p, const Vector3i &size)
 
 // -------------------- Pattern extraction and compatibility --------------------
 
-static Pattern extract_pattern_voxels(const Ref<VoxelDataVox> &vox, const Vector3i &center, const Neighborhood &ngh) {
+static Pattern extract_pattern_voxels(const Ref<VoxelDataVox> &vox, const Vector3i &center, const Neighborhood &ngh)
+{
     Pattern pat;
     pat.voxels.reserve(1 + ngh.get_K());
     pat.voxels.push_back(vox->get_voxel_at(center));
-    for (auto &off : ngh.offsets()) pat.voxels.push_back(vox->get_voxel_at(center + off));
+    for (auto &off : ngh.offsets())
+        pat.voxels.push_back(vox->get_voxel_at(center + off));
     return pat;
 }
 
@@ -257,20 +265,23 @@ static bool patterns_compatible_delta(const Neighborhood &ngh, const Pattern &A,
     // center in A maps to -delta in B
     {
         int idxB = ngh.index_including_center_for(Vector3i(-delta.x, -delta.y, -delta.z));
-        if (idxB >= 0 && A.voxels[0] != B.voxels[idxB]) return false;
+        if (idxB >= 0 && A.voxels[0] != B.voxels[idxB])
+            return false;
     }
 
-    for (int i = 0; i < K; ++i) {
+    for (int i = 0; i < K; ++i)
+    {
         const Vector3i posA = offs[i];
         const Vector3i posB = posA - delta;
         int idxB = ngh.index_including_center_for(posB);
-        if (idxB >= 0) {
-            if (A.voxels[i + 1] != B.voxels[idxB]) return false;
+        if (idxB >= 0)
+        {
+            if (A.voxels[i + 1] != B.voxels[idxB])
+                return false;
         }
     }
     return true;
 }
-
 
 static PatternModel build_pattern_model_from_neighborhood(const Ref<VoxelDataVox> &vox, const Vector3i &size,
                                                           const Neighborhood &ngh)
@@ -285,46 +296,63 @@ static PatternModel build_pattern_model_from_neighborhood(const Ref<VoxelDataVox
 
     // 1) Extract unique patterns fully in bounds
     for (int z = 0; z < size.z; ++z)
-    for (int y = 0; y < size.y; ++y)
-    for (int x = 0; x < size.x; ++x) {
-        Vector3i c(x, y, z);
-        bool all_in = in_bounds(c, size);
-        if (all_in) {
-            for (auto &off : ngh.offsets()) {
-                if (!in_bounds(c + off, size)) { all_in = false; break; }
-            }
-        }
-        if (!all_in) continue;
+        for (int y = 0; y < size.y; ++y)
+            for (int x = 0; x < size.x; ++x)
+            {
+                Vector3i c(x, y, z);
+                bool all_in = in_bounds(c, size);
+                if (all_in)
+                {
+                    for (auto &off : ngh.offsets())
+                    {
+                        if (!in_bounds(c + off, size))
+                        {
+                            all_in = false;
+                            break;
+                        }
+                    }
+                }
+                if (!all_in)
+                    continue;
 
-        Pattern pat = extract_pattern_voxels(vox, c, ngh);
-        auto it = pattern_ids.find(pat);
-        if (it == pattern_ids.end()) {
-            int id = (int)model.patterns.size();
-            pattern_ids.emplace(pat, id);
-            model.patterns.push_back(std::move(pat));
-            counts.push_back(1);
-        } else {
-            counts[it->second] += 1;
-        }
-    }
+                Pattern pat = extract_pattern_voxels(vox, c, ngh);
+                auto it = pattern_ids.find(pat);
+                if (it == pattern_ids.end())
+                {
+                    int id = (int)model.patterns.size();
+                    pattern_ids.emplace(pat, id);
+                    model.patterns.push_back(std::move(pat));
+                    counts.push_back(1);
+                }
+                else
+                {
+                    counts[it->second] += 1;
+                }
+            }
 
     const int P = (int)model.patterns.size();
     UtilityFunctions::print(String("Extracted ") + String::num_int64(P) + " unique patterns");
     model.priors.resize(P, 0.0f);
-    uint64_t total = 0; for (auto cnt : counts) total += cnt;
-    for (int i = 0; i < P; ++i) model.priors[i] = total ? float(counts[i]) / float(total) : 0.0f;
+    uint64_t total = 0;
+    for (auto cnt : counts)
+        total += cnt;
+    for (int i = 0; i < P; ++i)
+        model.priors[i] = total ? float(counts[i]) / float(total) : 0.0f;
 
     // 2) Compatibility per delta: compat_delta[D][P][words]
     const int words_per_mask = (P + 31) / 32;
-    model.compat.assign(model.D,
-        std::vector<std::vector<uint32_t>>(P, std::vector<uint32_t>(words_per_mask, 0)));
+    model.compat.assign(model.D, std::vector<std::vector<uint32_t>>(P, std::vector<uint32_t>(words_per_mask, 0)));
 
-    for (int d = 0; d < model.D; ++d) {
+    for (int d = 0; d < model.D; ++d)
+    {
         const Vector3i delta = ngh.center_deltas()[d];
-        for (int a = 0; a < P; ++a) {
+        for (int a = 0; a < P; ++a)
+        {
             auto &mask = model.compat[d][a];
-            for (int b = 0; b < P; ++b) {
-                if (patterns_compatible_delta(*model.ngh, model.patterns[a], model.patterns[b], delta)) {
+            for (int b = 0; b < P; ++b)
+            {
+                if (patterns_compatible_delta(*model.ngh, model.patterns[a], model.patterns[b], delta))
+                {
                     mask[b >> 5] |= (1 << (b & 31));
                 }
             }
@@ -333,7 +361,6 @@ static PatternModel build_pattern_model_from_neighborhood(const Ref<VoxelDataVox
 
     return model;
 }
-
 
 void debug_place_and_print_patterns(PatternModel &model, const Neighborhood &ngh, VoxelWorldRIDs &voxel_world_rids,
                                     const VoxelWorldProperties &properties)
@@ -583,8 +610,10 @@ std::vector<CompatMismatch> validate_compat(const PatternModel &model)
 }
 
 // -------------------- Generator --------------------
-bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, const Vector3i bounds_min, const Vector3i bounds_max, const VoxelWorldProperties &properties)
-// std::vector<Voxel> VoxelWorldWFCPatternGenerator::generate(const Vector3i bounds_min, const Vector3i bounds_max, const VoxelWorldProperties &properties)
+bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, const Vector3i bounds_min,
+                                             const Vector3i bounds_max, const VoxelWorldProperties &properties)
+// std::vector<Voxel> VoxelWorldWFCPatternGenerator::generate(const Vector3i bounds_min, const Vector3i bounds_max,
+// const VoxelWorldProperties &properties)
 {
     if (voxel_data.is_null())
     {
@@ -611,7 +640,7 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
     // debug_place_and_print_patterns(model, ngh, voxel_world_rids, properties);
     // UtilityFunctions::print("PatternWFC: Amount of mismatches between compat and exhaustive check: ",
     // validate_compat(model).size()); debug_place_pattern_pairs(model, ngh, voxel_world_rids, properties, 10000,
-    // Time::get_singleton()->get_unix_time_from_system()); 
+    // Time::get_singleton()->get_unix_time_from_system());
     // return;
 
     // Output grid size
@@ -644,25 +673,25 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
     std::mt19937 rng(Time::get_singleton()->get_unix_time_from_system());
 
     // Min-heap for selecting next collapse (lowest entropy first)
-    struct HeapNode {
+    struct HeapNode
+    {
         float entropy;
         int index;
         uint32_t version;
         uint64_t tick;
     };
 
-    struct HeapCompare {
-        bool operator()(const HeapNode &a, const HeapNode &b) const {
+    struct HeapCompare
+    {
+        bool operator()(const HeapNode &a, const HeapNode &b) const
+        {
             if (a.entropy != b.entropy)
                 return a.entropy > b.entropy; // min-heap on entropy
-            return a.tick < b.tick; // larger tick = more recent
+            return a.tick < b.tick;           // larger tick = more recent
         }
     };
 
     std::priority_queue<HeapNode, std::vector<HeapNode>, HeapCompare> heap;
-
-    // --- configuration ---
-    const bool enable_union_wave = false;//true; // toggle stronger propagation
 
     // setup superposition cells
     normalize(model.priors); // ensure priors sum to 1.0
@@ -685,27 +714,33 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
         bool any_changed = false;
         bool all_zero = true;
 
-        for (size_t w = 0; w < Pwords; ++w) {
+        for (size_t w = 0; w < Pwords; ++w)
+        {
             uint32_t before = tgt.domain_bits[w];
             uint32_t after = before & mask[w];
 
             // tail clamp for last partial word
-            if (w == Pwords - 1 && (Pbits & 31)) {
+            if (w == Pwords - 1 && (Pbits & 31))
+            {
                 uint32_t tailmask = (~0u) >> (32 - (Pbits & 31));
                 after &= tailmask;
             }
 
-            if (after != before) any_changed = true;
-            if (after) all_zero = false;
+            if (after != before)
+                any_changed = true;
+            if (after)
+                all_zero = false;
             tgt.domain_bits[w] = after;
         }
 
-        if (all_zero) {
+        if (all_zero)
+        {
             tgt.version = ~0u; // contradiction marker
             return true;       // signal "changed" to trigger handling
         }
 
-        if (!any_changed) return false;
+        if (!any_changed)
+            return false;
 
         tgt.entropy = shannon_entropy(model.priors, tgt.domain_bits);
         return true;
@@ -721,18 +756,22 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
     std::vector<uint32_t> union_mask;
     union_mask.resize(Pwords);
 
-    auto build_union_mask_from_bits = [&](int d, const std::vector<uint32_t> &bits) -> const std::vector<uint32_t>& {
+    auto build_union_mask_from_bits = [&](int d, const std::vector<uint32_t> &bits) -> const std::vector<uint32_t> & {
         std::fill(union_mask.begin(), union_mask.end(), 0u);
 
-        for (size_t w = 0; w < bits.size(); ++w) {
+        for (size_t w = 0; w < bits.size(); ++w)
+        {
             uint32_t word = bits[w];
-            if (!word) continue;
+            if (!word)
+                continue;
 
             const int base = static_cast<int>(w << 5); // w*32
-            while (word) {
-                int bit = ctz32(word);        
+            while (word)
+            {
+                int bit = ctz32(word);
                 const int pat = base + bit;
-                if (pat < Pbits) {
+                if (pat < Pbits)
+                {
                     const auto &cm = model.compat[d][pat];
                     for (size_t ww = 0; ww < Pwords; ++ww)
                         union_mask[ww] |= cm[ww];
@@ -742,21 +781,27 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
             }
         }
         // mask tail in last word
-        if (Pbits & 31) {
+        if (Pbits & 31)
+        {
             uint32_t tailmask = (~0u) >> (32 - (Pbits & 31));
             union_mask[Pwords - 1] &= tailmask;
         }
         return union_mask;
     };
 
-
-    auto init_from_single_neighbor = [&](int idx, int d, int neighbor_pattern_id) -> SuperpositionCell * {
+    auto init_from_single_neighbor = [&](int idx, int d, int neighbor_pattern_id) -> PatternCell * {
         auto *sp = init_superposition_from_priors(idx);
-        if (!sp) return nullptr;
-        apply_compat_single(*sp, d, neighbor_pattern_id);
-        if (sp->version == ~0u) {
-            grid[idx].reset();
+        if (!sp)
             return nullptr;
+        apply_compat_single(*sp, d, neighbor_pattern_id);
+        if (sp->version == ~0u)
+        {
+            auto cl = std::make_unique<CollapsedCell>();
+            cl->pattern_id = 0;
+            cl->is_debug = true;
+            auto *raw = cl.get();
+            grid[idx] = std::move(cl);
+            return raw;
         }
         return sp;
     };
@@ -766,27 +811,34 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
     // For strong propagation: a small work-queue and an in-queue marker
     std::deque<int> wave_q;
     std::vector<uint8_t> in_wave;
-    if (enable_union_wave) in_wave.assign(N, 0);
+    if (enable_superposition_propagation)
+        in_wave.assign(N, 0);
 
     // Seed: choose center-ish cell, init from priors
-    int seed_idx = index_3d(Vector3i(grid_size.x / 2, grid_size.y / 2, grid_size.z / 2), grid_size);
-    if (seed_idx < 0 || seed_idx >= N) seed_idx = 0;
+    int seed_idx = index_3d((seed_position_normalized * grid_size).floor(), grid_size);
+    if (seed_idx < 0 || seed_idx >= N)
+        seed_idx = 0;
     SuperpositionCell *seed_sp = init_superposition_from_priors(seed_idx);
-    if (seed_sp) heap.push(HeapNode{seed_sp->entropy, seed_idx, seed_sp->version, global_tick++});
+    if (seed_sp)
+        heap.push(HeapNode{seed_sp->entropy, seed_idx, seed_sp->version, global_tick++});
 
     // Main loop
-    while (!heap.empty()) {
+    while (!heap.empty())
+    {
         HeapNode node = heap.top();
         heap.pop();
-        if (grid[node.index]->kind() != PatternCell::Kind::SUPERPOSITION) continue;
+        if (grid[node.index]->kind() != PatternCell::Kind::SUPERPOSITION)
+            continue;
         auto *sp = static_cast<SuperpositionCell *>(grid[node.index].get());
-        if (sp->version != node.version) continue; // stale
+        if (sp->version != node.version)
+            continue; // stale
 
         // Collapse
         int pat_id = weighted_sample_bits(model.priors, sp->domain_bits, rng);
-        bool invalid = sp->version == ~0u;
-        collapse_to_pattern(node.index, pat_id, invalid);
-        if (invalid) continue;
+        bool invalid = sp->version == ~0u || pat_id < 0;
+        collapse_to_pattern(node.index, std::max(0, pat_id), invalid);
+        if (invalid)
+            continue;
 
         // Propagate to neighbors
         Vector3i pos = pos_from_index(node.index);
@@ -794,26 +846,44 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
         const int D = static_cast<int>(deltas.size());
 
         // Seed list of neighbors changed by the immediate single-pattern propagation
-        if (enable_union_wave) wave_q.clear();
+        if (enable_superposition_propagation)
+            wave_q.clear();
 
-        for (int d = 0; d < D; ++d) {
+        for (int d = 0; d < D; ++d)
+        {
             Vector3i np = pos + deltas[d];
-            if (!in_bounds(np, grid_size)) continue;
+            if (!in_bounds(np, grid_size))
+                continue;
             int nidx = index_3d(np, grid_size);
 
             auto kind = grid[nidx]->kind();
-            if (kind == PatternCell::Kind::EMPTY) {
-                if (auto *tgt = init_from_single_neighbor(nidx, d, pat_id)) {
-                    heap.push({tgt->entropy, nidx, tgt->version, global_tick++});
-                    if (enable_union_wave && !in_wave[nidx]) { wave_q.push_back(nidx); in_wave[nidx] = 1; }
+            if (kind == PatternCell::Kind::EMPTY)
+            {
+                if (auto *tgt = init_from_single_neighbor(nidx, d, pat_id))
+                {
+                    if (tgt->kind() == PatternCell::Kind::SUPERPOSITION)
+                    {
+                        auto *sp = static_cast<SuperpositionCell *>(tgt);
+                        heap.push({sp->entropy, nidx, sp->version, global_tick++});
+                        if (enable_superposition_propagation && !in_wave[nidx])
+                        {
+                            wave_q.push_back(nidx);
+                            in_wave[nidx] = 1;
+                        }
+                    }
                 }
-            } else if (kind == PatternCell::Kind::SUPERPOSITION) {
+            }
+            else if (kind == PatternCell::Kind::SUPERPOSITION)
+            {
                 auto *tgt = static_cast<SuperpositionCell *>(grid[nidx].get());
                 bool changed = apply_compat_single(*tgt, d, pat_id);
-                if (changed) {
-                    tgt->version += 1;
+                if (changed)
+                {
+                    if(tgt->version != ~0)
+                        tgt->version += 1;
                     heap.push({tgt->entropy, nidx, tgt->version, global_tick++});
-                    if (enable_union_wave && tgt->version != ~0u && !in_wave[nidx]) {
+                    if (enable_superposition_propagation && tgt->version != ~0u && !in_wave[nidx])
+                    {
                         wave_q.push_back(nidx);
                         in_wave[nidx] = 1;
                     }
@@ -822,33 +892,42 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
         }
 
         // Optional stronger wave propagation using union-of-compatibility from superpositions
-        if (enable_union_wave) {
-            while (!wave_q.empty()) {
+        if (enable_superposition_propagation)
+        {
+            while (!wave_q.empty())
+            {
                 int src_idx = wave_q.front();
                 wave_q.pop_front();
                 in_wave[src_idx] = 0;
 
-                if (!grid[src_idx] || grid[src_idx]->kind() != PatternCell::Kind::SUPERPOSITION) continue;
+                if (!grid[src_idx] || grid[src_idx]->kind() != PatternCell::Kind::SUPERPOSITION)
+                    continue;
                 auto *src_sp = static_cast<SuperpositionCell *>(grid[src_idx].get());
 
                 Vector3i spos = pos_from_index(src_idx);
-                for (int d = 0; d < D; ++d) {
+                for (int d = 0; d < D; ++d)
+                {
                     Vector3i np = spos + deltas[d];
-                    if (!in_bounds(np, grid_size)) continue;
+                    if (!in_bounds(np, grid_size))
+                        continue;
                     int nidx = index_3d(np, grid_size);
 
-                    if (!grid[nidx] || grid[nidx]->kind() != PatternCell::Kind::SUPERPOSITION) continue;
+                    if (!grid[nidx] || grid[nidx]->kind() != PatternCell::Kind::SUPERPOSITION)
+                        continue;
                     auto *tgt = static_cast<SuperpositionCell *>(grid[nidx].get());
 
                     // Union mask from src -> tgt along delta d
                     const auto &um = build_union_mask_from_bits(d, src_sp->domain_bits);
                     bool changed = apply_mask(*tgt, um);
-                    if (changed) {
-                        tgt->version += 1;
+                    if (changed)
+                    {
+                        if(tgt->version != ~0)
+                            tgt->version += 1;
                         heap.push({tgt->entropy, nidx, tgt->version, global_tick++});
 
                         // Keep propagating if still a superposition and not already queued
-                        if (tgt->version != ~0u && !in_wave[nidx]) {
+                        if (tgt->version != ~0u && !in_wave[nidx])
+                        {
                             wave_q.push_back(nidx);
                             in_wave[nidx] = 1;
                         }
@@ -863,13 +942,15 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
         int result_idx = properties.pos_to_voxel_index(pos_from_index(i) + bounds_min);
         if (result_idx < 0 || result_idx >= static_cast<int>(result_voxels.size()))
             continue;
+        if(!grid[i] || (result_voxels[result_idx].is_air() && only_replace_air)) continue;
         if (grid[i]->kind() == PatternCell::Kind::COLLAPSED)
         {
             auto *cv = static_cast<CollapsedCell *>(grid[i].get());
             int pid = cv->pattern_id;
             if (cv->is_debug)
             {
-                result_voxels[result_idx] = Voxel::create_voxel(Voxel::VOXEL_TYPE_SOLID, Color(1.0f, 0.0f, 1.0f));
+                if(show_contradictions)
+                    result_voxels[result_idx] = Voxel::create_voxel(Voxel::VOXEL_TYPE_SOLID, Color(1.0f, 0.0f, 1.0f));
             }
             else if (pid >= 0 && pid < P)
             {
@@ -879,5 +960,4 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
     }
 
     return true;
-    // voxel_world_rids.set_voxel_data(result_voxels);
 }

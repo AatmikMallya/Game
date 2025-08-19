@@ -608,15 +608,19 @@ bool VoxelWorldWFCTileGenerator::generate(std::vector<Voxel> &result_voxels, con
         return true;
     };
 
-    auto init_from_single_neighbor = [&](int idx, int dir, int neighbor_pattern_id) -> SuperpositionCell * {
+    auto init_from_single_neighbor = [&](int idx, int dir, int neighbor_pattern_id) -> PatternCell * {
         auto *sp = init_superposition_from_priors(idx);
         if (!sp)
             return nullptr;
         (void)apply_constraints(*sp, dir, neighbor_pattern_id);
         if (sp->version == ~0u)
         {
-            grid[idx].reset();
-            return nullptr;
+            auto cl = std::make_unique<CollapsedCell>();
+            cl->pattern_id = 0;
+            cl->is_debug = true;
+            auto *raw = cl.get();
+            grid[idx] = std::move(cl);
+            return raw;
         }
         return sp;
     };
@@ -685,7 +689,8 @@ bool VoxelWorldWFCTileGenerator::generate(std::vector<Voxel> &result_voxels, con
             {
                 if (auto *tgt = init_from_single_neighbor(nidx, d, pat_id))
                 {
-                    push_sp(nidx, tgt);
+                    if (tgt->kind() == PatternCell::Kind::SUPERPOSITION)
+                        push_sp(nidx, static_cast<SuperpositionCell *>(tgt));
                 }
             }
             else if (kind == PatternCell::Kind::SUPERPOSITION)
@@ -708,6 +713,8 @@ bool VoxelWorldWFCTileGenerator::generate(std::vector<Voxel> &result_voxels, con
             }
         }
     }
+
+    return false;
 
     for (int i = 0; i < N; ++i)
     {
