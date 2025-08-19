@@ -1,8 +1,9 @@
 [gd_resource type="VoxelWorldWFCPatternGenerator" load_steps=2 format=3 uid="uid://erauajcu6awn"]
 
 [sub_resource type="VoxelDataVox" id="VoxelDataVox_j5lb4"]
-file_path = "res://demo/assets/voxels/houses.vox"
+file_path = "res://demo/assets/voxels/simpler_field_no_trees.vox"
 
 [resource]
 voxel_data = SubResource("VoxelDataVox_j5lb4")
-target_grid_size = Vector3i(16, 16, 16)
+only_replace_air = false
+target_grid_size = Vector3i(64, 16, 64)

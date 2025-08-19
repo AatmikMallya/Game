@@ -81,7 +81,8 @@ inline int weighted_sample_bits(const std::vector<float> &priors, const std::vec
         {
             int bit = ctz32(bits);
             int idx = base + bit;
-            if (idx < n) total += priors[idx];
+            if (idx < n)
+                total += priors[idx];
             bits &= bits - 1;
         }
     }
@@ -104,9 +105,11 @@ inline int weighted_sample_bits(const std::vector<float> &priors, const std::vec
         {
             int bit = ctz32(bits);
             int idx = base + bit;
-            if (idx < n) {
+            if (idx < n)
+            {
                 cum += priors[idx];
-                if (r <= cum) return idx;
+                if (r <= cum)
+                    return idx;
             }
             bits &= bits - 1;
         }
@@ -623,8 +626,9 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
     voxel_data->load();
 
     // Config
-    Moore neighborhood(2, true);
-    // Face6Neighborhood neighborhood;
+    // Moore neighborhood(1, true);
+    VonNeumann neighborhood(2, true);
+
     const Neighborhood &ngh = neighborhood;
 
     // Template extraction
@@ -699,6 +703,30 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
     const size_t Pwords = (Pbits + 31) / 32;
     float priors_entropy = shannon_entropy(model.priors, std::vector<uint32_t>(Pwords, ~0u));
 
+    // Precompute an all-ones mask (with tail clamp) for early exits.
+    std::vector<uint32_t> ALL1(Pwords, ~0u);
+    if (Pbits & 31)
+    {
+        uint32_t tailmask = (~0u) >> (32 - (Pbits & 31));
+        ALL1[Pwords - 1] = tailmask;
+    }
+
+    // Popcount for bitset domain
+    auto popcount_bits = [&](const std::vector<uint32_t> &bits) -> int {
+        int c = 0;
+        for (uint32_t w : bits)
+            c += popcount32(w);
+        return c;
+    };
+
+    // Small helper to check "mask is saturated"
+    auto is_all_ones = [&](const std::vector<uint32_t> &mask) -> bool {
+        for (size_t i = 0; i < Pwords; ++i)
+            if (mask[i] != ALL1[i])
+                return false;
+        return true;
+    };
+
     auto init_superposition_from_priors = [&](int idx) -> SuperpositionCell * {
         auto sp = std::make_unique<SuperpositionCell>();
         sp->domain_bits.resize(Pwords, ~0u);
@@ -756,9 +784,12 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
     std::vector<uint32_t> union_mask;
     union_mask.resize(Pwords);
 
+    // Build union-of-compatibility for direction d against a source domain.
+    // Keeps arc consistency: target allowed iff supported by at least one source pattern.
     auto build_union_mask_from_bits = [&](int d, const std::vector<uint32_t> &bits) -> const std::vector<uint32_t> & {
         std::fill(union_mask.begin(), union_mask.end(), 0u);
 
+        // If domain is small, this stays cheap; if it grows, we likely saturate — early exit once saturated.
         for (size_t w = 0; w < bits.size(); ++w)
         {
             uint32_t word = bits[w];
@@ -770,14 +801,28 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
             {
                 int bit = ctz32(word);
                 const int pat = base + bit;
-                if (pat < Pbits)
+                if (pat < static_cast<int>(Pbits))
                 {
                     const auto &cm = model.compat[d][pat];
+                    // OR and check for new bits; if saturated, return early
                     for (size_t ww = 0; ww < Pwords; ++ww)
+                    {
                         union_mask[ww] |= cm[ww];
+                    }
+                    // Tail clamp once at the end is fine, but we can also short-circuit if saturated
+                    // (Cheap check; avoids tail clamp each time)
+                    if (is_all_ones(union_mask))
+                    {
+                        // Ensure tail is clamped before returning
+                        if (Pbits & 31)
+                        {
+                            uint32_t tailmask = (~0u) >> (32 - (Pbits & 31));
+                            union_mask[Pwords - 1] &= tailmask;
+                        }
+                        return union_mask;
+                    }
                 }
-                // clear LSB
-                word &= (word - 1);
+                word &= (word - 1); // clear LSB
             }
         }
         // mask tail in last word
@@ -811,8 +856,15 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
     // For strong propagation: a small work-queue and an in-queue marker
     std::deque<int> wave_q;
     std::vector<uint8_t> in_wave;
+    std::vector<uint8_t> dirty;    // mark cells whose entropy changed during wave
+    std::vector<int> pending_heap; // gather cells to push to heap after wave settles
+
     if (enable_superposition_propagation)
+    {
         in_wave.assign(N, 0);
+        dirty.assign(N, 0);
+        pending_heap.reserve(128);
+    }
 
     // Seed: choose center-ish cell, init from priors
     int seed_idx = index_3d((seed_position_normalized * grid_size).floor(), grid_size);
@@ -835,7 +887,7 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
 
         // Collapse
         int pat_id = weighted_sample_bits(model.priors, sp->domain_bits, rng);
-        bool invalid = sp->version == ~0u || pat_id < 0;
+        bool invalid = sp->version == ~0u;// || pat_id < 0;
         collapse_to_pattern(node.index, std::max(0, pat_id), invalid);
         if (invalid)
             continue;
@@ -859,18 +911,26 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
             auto kind = grid[nidx]->kind();
             if (kind == PatternCell::Kind::EMPTY)
             {
-                if (auto *tgt = init_from_single_neighbor(nidx, d, pat_id))
+                if (auto *tgt_cell = init_from_single_neighbor(nidx, d, pat_id))
                 {
-                    if (tgt->kind() == PatternCell::Kind::SUPERPOSITION)
+                    if (tgt_cell->kind() == PatternCell::Kind::SUPERPOSITION)
                     {
-                        auto *sp = static_cast<SuperpositionCell *>(tgt);
-                        heap.push({sp->entropy, nidx, sp->version, global_tick++});
-                        if (enable_superposition_propagation && !in_wave[nidx])
+                        auto *tgt = static_cast<SuperpositionCell *>(tgt_cell);
+                        if (enable_superposition_propagation)
                         {
-                            wave_q.push_back(nidx);
-                            in_wave[nidx] = 1;
+                            if (!in_wave[nidx])
+                            {
+                                wave_q.push_back(nidx);
+                                in_wave[nidx] = 1;
+                            }
+                            dirty[nidx] = 1; // mark for later heap push
+                        }
+                        else
+                        {
+                            heap.push({tgt->entropy, nidx, tgt->version, global_tick++});
                         }
                     }
+                    // If it became collapsed due to contradiction handling, nothing to enqueue
                 }
             }
             else if (kind == PatternCell::Kind::SUPERPOSITION)
@@ -879,19 +939,36 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
                 bool changed = apply_compat_single(*tgt, d, pat_id);
                 if (changed)
                 {
-                    if(tgt->version != ~0)
+                    if (tgt->version < ~0u)
                         tgt->version += 1;
-                    heap.push({tgt->entropy, nidx, tgt->version, global_tick++});
-                    if (enable_superposition_propagation && tgt->version != ~0u && !in_wave[nidx])
+                    if (enable_superposition_propagation)
                     {
-                        wave_q.push_back(nidx);
-                        in_wave[nidx] = 1;
+                        if (tgt->version < ~0u && !in_wave[nidx])
+                        {
+                            wave_q.push_back(nidx);
+                            in_wave[nidx] = 1;
+                        }
+                        dirty[nidx] = 1;
+                    }
+                    else
+                    {
+                        heap.push({tgt->entropy, nidx, tgt->version, global_tick++});
                     }
                 }
             }
         }
 
-        // Optional stronger wave propagation using union-of-compatibility from superpositions
+        // Optionally: also seed the collapsed source itself into the wave to propagate further hops immediately
+        if (enable_superposition_propagation)
+        {
+            int sidx = node.index;
+            if (!in_wave[sidx])
+            {
+                wave_q.push_back(sidx);
+                in_wave[sidx] = 1;
+            }
+        }
+
         if (enable_superposition_propagation)
         {
             while (!wave_q.empty())
@@ -900,11 +977,55 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
                 wave_q.pop_front();
                 in_wave[src_idx] = 0;
 
-                if (!grid[src_idx] || grid[src_idx]->kind() != PatternCell::Kind::SUPERPOSITION)
+                if (!grid[src_idx])
                     continue;
-                auto *src_sp = static_cast<SuperpositionCell *>(grid[src_idx].get());
 
                 Vector3i spos = pos_from_index(src_idx);
+
+                // Determine source “mode”
+                bool src_is_sp = (grid[src_idx]->kind() == PatternCell::Kind::SUPERPOSITION);
+                const std::vector<uint32_t> *src_bits = nullptr;
+                int src_single_pat = -1;
+
+                if (src_is_sp)
+                {
+                    auto *src_sp = static_cast<SuperpositionCell *>(grid[src_idx].get());
+                    // If contradiction, skip
+                    if (src_sp->version >= ~0u)
+                        continue;
+                    int pc = popcount_bits(src_sp->domain_bits);
+                    if (pc == 0)
+                        continue; // defensive
+                    if (pc == 1)
+                    {
+                        // Extract the single pattern id
+                        for (size_t w = 0; w < src_sp->domain_bits.size(); ++w)
+                        {
+                            uint32_t word = src_sp->domain_bits[w];
+                            if (word)
+                            {
+                                int bit = ctz32(word);
+                                src_single_pat = static_cast<int>((w << 5) + bit);
+                                break;
+                            }
+                        }
+                        src_is_sp = false; // treat as collapsed for propagation
+                    }
+                    else
+                    {
+                        src_bits = &src_sp->domain_bits;
+                    }
+                }
+                else if (grid[src_idx]->kind() == PatternCell::Kind::COLLAPSED)
+                {
+                    auto *src_cl = static_cast<CollapsedCell *>(grid[src_idx].get());
+                    src_single_pat = src_cl->pattern_id;
+                }
+                else
+                {
+                    continue;
+                }
+
                 for (int d = 0; d < D; ++d)
                 {
                     Vector3i np = spos + deltas[d];
@@ -915,24 +1036,60 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
                     if (!grid[nidx] || grid[nidx]->kind() != PatternCell::Kind::SUPERPOSITION)
                         continue;
                     auto *tgt = static_cast<SuperpositionCell *>(grid[nidx].get());
+                    if (tgt->version >= ~0u)
+                        continue; // already contradictory
 
-                    // Union mask from src -> tgt along delta d
-                    const auto &um = build_union_mask_from_bits(d, src_sp->domain_bits);
-                    bool changed = apply_mask(*tgt, um);
+                    bool changed = false;
+                    if (src_single_pat >= 0)
+                    {
+                        // Fast path: single-pattern support
+                        changed = apply_compat_single(*tgt, d, src_single_pat);
+                    }
+                    else
+                    {
+                        // General case: union-of-compatibility from source superposition
+                        const auto &um = build_union_mask_from_bits(d, *src_bits);
+                        changed = apply_mask(*tgt, um);
+                    }
+
                     if (changed)
                     {
-                        if(tgt->version != ~0)
+                        if (tgt->version < ~0u)
                             tgt->version += 1;
-                        heap.push({tgt->entropy, nidx, tgt->version, global_tick++});
 
-                        // Keep propagating if still a superposition and not already queued
-                        if (tgt->version != ~0u && !in_wave[nidx])
+                        // If still a valid superposition, keep propagating
+                        if (tgt->version < ~0u && !in_wave[nidx])
                         {
                             wave_q.push_back(nidx);
                             in_wave[nidx] = 1;
                         }
+
+                        // Mark for a single heap push after wave finishes
+                        dirty[nidx] = 1;
                     }
                 }
+            }
+
+            // Now batch-push changed cells to the heap once the wave stabilized
+            pending_heap.clear();
+            for (int i = 0; i < N; ++i)
+            {
+                if (!dirty[i])
+                    continue;
+                dirty[i] = 0;
+
+                if (!grid[i] || grid[i]->kind() != PatternCell::Kind::SUPERPOSITION)
+                    continue;
+                auto *t = static_cast<SuperpositionCell *>(grid[i].get());
+                if (t->version >= ~0u)
+                    continue; // contradictory
+
+                pending_heap.push_back(i);
+            }
+            for (int idx : pending_heap)
+            {
+                auto *t = static_cast<SuperpositionCell *>(grid[idx].get());
+                heap.push({t->entropy, idx, t->version, global_tick++});
             }
         }
     }
@@ -942,14 +1099,15 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
         int result_idx = properties.pos_to_voxel_index(pos_from_index(i) + bounds_min);
         if (result_idx < 0 || result_idx >= static_cast<int>(result_voxels.size()))
             continue;
-        if(!grid[i] || (result_voxels[result_idx].is_air() && only_replace_air)) continue;
+        if (!grid[i] || (!result_voxels[result_idx].is_air() && only_replace_air))
+            continue;
         if (grid[i]->kind() == PatternCell::Kind::COLLAPSED)
         {
             auto *cv = static_cast<CollapsedCell *>(grid[i].get());
             int pid = cv->pattern_id;
             if (cv->is_debug)
             {
-                if(show_contradictions)
+                if (show_contradictions)
                     result_voxels[result_idx] = Voxel::create_voxel(Voxel::VOXEL_TYPE_SOLID, Color(1.0f, 0.0f, 1.0f));
             }
             else if (pid >= 0 && pid < P)
