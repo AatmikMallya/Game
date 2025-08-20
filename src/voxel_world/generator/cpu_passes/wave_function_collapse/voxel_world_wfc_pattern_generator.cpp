@@ -365,14 +365,14 @@ static PatternModel build_pattern_model_from_neighborhood(const Ref<VoxelDataVox
     return model;
 }
 
-void debug_place_and_print_patterns(PatternModel &model, const Neighborhood &ngh, VoxelWorldRIDs &voxel_world_rids,
+void debug_place_and_print_patterns(PatternModel &model, const Neighborhood &ngh, std::vector<Voxel> &result_voxels,
                                     const VoxelWorldProperties &properties)
 {
     float epsilon = 1e-8f;
     int P = static_cast<int>(model.patterns.size());
 
     const auto &grid_size = properties.grid_size; // assume Vector3i or similar
-    std::vector<Voxel> result_voxels(voxel_world_rids.voxel_count, Voxel::create_air_voxel());
+    // std::vector<Voxel> result_voxels(voxel_world_rids.voxel_count, Voxel::create_air_voxel());
 
     // --- 1) Pattern placement in debug order ---
     int gap_x = 1, gap_y = 2, gap_z = 3;
@@ -426,8 +426,6 @@ void debug_place_and_print_patterns(PatternModel &model, const Neighborhood &ngh
             }
         }
     }
-
-    voxel_world_rids.set_voxel_data(result_voxels);
 
     // --- 2) Pattern priors ---
     String s = "Priors (non-zero):\n";
@@ -641,11 +639,11 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
         return false;
     }
 
-    // debug_place_and_print_patterns(model, ngh, voxel_world_rids, properties);
+    // debug_place_and_print_patterns(model, ngh, result_voxels, properties);
     // UtilityFunctions::print("PatternWFC: Amount of mismatches between compat and exhaustive check: ",
     // validate_compat(model).size()); debug_place_pattern_pairs(model, ngh, voxel_world_rids, properties, 10000,
     // Time::get_singleton()->get_unix_time_from_system());
-    // return;
+    // return true;
 
     // Output grid size
     Vector3i grid_size(properties.grid_size.x, properties.grid_size.y, properties.grid_size.z);
@@ -866,13 +864,230 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
         pending_heap.reserve(128);
     }
 
-    // Seed: choose center-ish cell, init from priors
-    int seed_idx = index_3d((seed_position_normalized * grid_size).floor(), grid_size);
-    if (seed_idx < 0 || seed_idx >= N)
-        seed_idx = 0;
-    SuperpositionCell *seed_sp = init_superposition_from_priors(seed_idx);
-    if (seed_sp)
-        heap.push(HeapNode{seed_sp->entropy, seed_idx, seed_sp->version, global_tick++});
+    // --- Optional: bootstrap from an initial generator pass ---
+    bool bootstrapped = false;
+    bool created_any_superposition = false;
+
+    if (initial_state.is_valid())
+    {
+        // 1) Generate initial voxel state using the same bounds as this pass.
+        std::vector<Voxel> initial_voxels(result_voxels.size(), Voxel::create_air_voxel());
+        bool ok = initial_state->generate(initial_voxels, bounds_min, bounds_max, properties);
+
+        if (ok)
+        {
+            // Helper: get voxel from initial_voxels at world position, or a sentinel air if OOB.
+            auto get_initial_voxel = [&](const Vector3i &world_pos) -> Voxel {
+                int idx = properties.pos_to_voxel_index(world_pos);
+                if (idx < 0 || idx >= (int)initial_voxels.size())
+                    return Voxel::create_air_voxel();
+                return initial_voxels[idx];
+            };
+
+            // Helper: try match full pattern at grid cell i; returns pattern id or -1.
+            auto match_full_pattern_at = [&](int i) -> int {
+                Vector3i c_local = pos_from_index(i);
+                Vector3i c_world = c_local + bounds_min;
+
+                // Require full neighborhood in bounds (to match extraction rules)
+                for (const auto &off : ngh.offsets())
+                {
+                    Vector3i np_local = c_local + off;
+                    if (!in_bounds(np_local, grid_size))
+                        return -1;
+                }
+
+                // Compare against each pattern (first match wins)
+                for (int pid = 0; pid < P; ++pid)
+                {
+                    bool match = true;
+
+                    // Center
+                    if (get_initial_voxel(c_world) != model.patterns[pid].voxels[0])
+                    {
+                        continue;
+                    }
+
+                    // Offsets
+                    for (int k = 0; k < ngh.get_K(); ++k)
+                    {
+                        const Vector3i off = ngh.offsets()[k];
+                        if (get_initial_voxel(c_world + off) != model.patterns[pid].voxels[k + 1])
+                        {
+                            match = false;
+                            break;
+                        }
+                    }
+
+                    if (match)
+                        return pid;
+                }
+                return -1;
+            };
+
+            // Helper: fallback match by center voxel only; returns pattern id or -1
+            auto match_center_only = [&](int i) -> int {
+                Vector3i c_world = pos_from_index(i) + bounds_min;
+                Voxel v = get_initial_voxel(c_world);
+                for (int pid = 0; pid < P; ++pid)
+                {
+                    if (model.patterns[pid].voxels[0] == v)
+                        return pid;
+                }
+                return -1;
+            };
+
+            // 2) Greedy collapse: non-air -> first matching pattern; air -> leave empty.
+            std::vector<int> collapsed_indices;
+            std::vector<int> collapsed_pids;
+            collapsed_indices.reserve(N);
+            collapsed_pids.reserve(N);
+
+            for (int i = 0; i < N; ++i)
+            {
+                Vector3i wpos = pos_from_index(i) + bounds_min;
+                Voxel v = get_initial_voxel(wpos);
+                if (v.is_air())
+                {
+                    // Explicitly keep empty; constraints will be applied later.
+                    continue;
+                }
+
+                // Try full neighborhood match first
+                int pid = match_full_pattern_at(i);
+                if (pid < 0)
+                {
+                    // Fallback: center-only match
+                    pid = match_center_only(i);
+                }
+
+                if (pid >= 0)
+                {
+                    collapse_to_pattern(i, pid, /*is_debug*/ false);
+                    collapsed_indices.push_back(i);
+                    collapsed_pids.push_back(pid);
+                }
+                else
+                {
+                    // No match found — mark as debug contradiction so it's visible
+                    collapse_to_pattern(i, 0, /*is_debug*/ true);
+                }
+            }
+
+            // 3) Apply constraints from collapsed cells to their neighbors.
+            const auto &deltas = ngh.center_deltas();
+            const int D = (int)deltas.size();
+
+            for (size_t ci = 0; ci < collapsed_indices.size(); ++ci)
+            {
+                int idx = collapsed_indices[ci];
+                int pid = collapsed_pids[ci];
+                Vector3i pos = pos_from_index(idx);
+
+                for (int d = 0; d < D; ++d)
+                {
+                    Vector3i np = pos + deltas[d];
+                    if (!in_bounds(np, grid_size))
+                        continue;
+                    int nidx = index_3d(np, grid_size);
+
+                    auto k = grid[nidx]->kind();
+                    if (k == PatternCell::Kind::EMPTY)
+                    {
+                        // Create a superposition from priors and constrain it by this collapsed neighbor.
+                        if (auto *tgt = init_superposition_from_priors(nidx))
+                        {
+                            bool changed = apply_compat_single(*tgt, d, pid);
+                            // Even if no bits were pruned, we still created a superposition.
+                            created_any_superposition = true;
+
+                            if (changed && tgt->version != ~0u)
+                            {
+                                if (enable_superposition_propagation)
+                                {
+                                    if (!in_wave.empty())
+                                    { // in_wave allocated only when propagation is enabled
+                                        if (!in_wave[nidx])
+                                        {
+                                            wave_q.push_back(nidx);
+                                            in_wave[nidx] = 1;
+                                        }
+                                    }
+                                    if (!dirty.empty())
+                                        dirty[nidx] = 1;
+                                }
+                                else
+                                {
+                                    heap.push({tgt->entropy, nidx, tgt->version, global_tick++});
+                                }
+                            }
+                            else if (!enable_superposition_propagation)
+                            {
+                                // Push anyway so it participates in entropy selection
+                                heap.push({tgt->entropy, nidx, tgt->version, global_tick++});
+                            }
+                        }
+                    }
+                    else if (k == PatternCell::Kind::SUPERPOSITION)
+                    {
+                        auto *tgt = static_cast<SuperpositionCell *>(grid[nidx].get());
+                        bool changed = apply_compat_single(*tgt, d, pid);
+                        if (changed)
+                        {
+                            if (tgt->version < ~0u)
+                                tgt->version += 1;
+                            if (enable_superposition_propagation)
+                            {
+                                if (tgt->version < ~0u && !in_wave[nidx])
+                                {
+                                    wave_q.push_back(nidx);
+                                    in_wave[nidx] = 1;
+                                }
+                                if (!dirty.empty())
+                                    dirty[nidx] = 1;
+                            }
+                            else
+                            {
+                                heap.push({tgt->entropy, nidx, tgt->version, global_tick++});
+                            }
+                        }
+                    }
+                    // If neighbor is already collapsed, nothing to do here.
+                }
+            }
+
+            // If we batched changes, schedule them now.
+            if (enable_superposition_propagation)
+            {
+                for (int i = 0; i < N; ++i)
+                {
+                    if (!dirty.empty() && !dirty[i])
+                        continue;
+                    if (!grid[i] || grid[i]->kind() != PatternCell::Kind::SUPERPOSITION)
+                        continue;
+                    auto *t = static_cast<SuperpositionCell *>(grid[i].get());
+                    if (t->version == ~0u)
+                        continue;
+                    heap.push({t->entropy, i, t->version, global_tick++});
+                    if (!dirty.empty())
+                        dirty[i] = 0;
+                }
+            }
+
+            bootstrapped = true;
+        }
+    }
+
+    // If bootstrapped and we created at least one superposition, skip entropy seed; otherwise seed as usual.
+    if (!bootstrapped || !created_any_superposition)
+    {
+        int seed_idx = index_3d((seed_position_normalized * grid_size).floor(), grid_size);
+        if (seed_idx < 0 || seed_idx >= N)
+            seed_idx = 0;
+        SuperpositionCell *seed_sp = init_superposition_from_priors(seed_idx);
+        if (seed_sp)
+            heap.push(HeapNode{seed_sp->entropy, seed_idx, seed_sp->version, global_tick++});
+    }
 
     // Main loop
     while (!heap.empty())
@@ -887,7 +1102,7 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
 
         // Collapse
         int pat_id = weighted_sample_bits(model.priors, sp->domain_bits, rng);
-        bool invalid = sp->version == ~0u;// || pat_id < 0;
+        bool invalid = sp->version == ~0u; // || pat_id < 0;
         collapse_to_pattern(node.index, std::max(0, pat_id), invalid);
         if (invalid)
             continue;

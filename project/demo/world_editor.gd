@@ -6,7 +6,7 @@ extends Node3D
 func set_selected_material(value: int) -> void:
 	selected_material = value
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	if Input.is_action_pressed("left_click"):
 		world.edit_world(global_position, -global_transform.basis.z, 3, 1000, selected_material);
 	if Input.is_action_pressed("right_click"):

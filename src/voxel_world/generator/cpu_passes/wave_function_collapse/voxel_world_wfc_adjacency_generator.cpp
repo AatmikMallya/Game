@@ -1,3 +1,4 @@
+#include "voxel_world_wfc_adjacency_generator.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -7,18 +8,21 @@
 #include <memory>
 #include <queue>
 #include <random>
+#include <unordered_map>
 #include <vector>
-
-#include "voxel_world_wfc_adjacency_generator.h"
 
 #include "wfc_neighborhood.h"
 #include <godot_cpp/variant/utility_functions.hpp>
+
 using namespace godot;
 
 // Constants
 static constexpr int T = 256; // palette size
 static constexpr float EPS = 1e-9f;
 static constexpr uint8_t DEBUG_TILE_ID = 255; // magenta/debug fallback (adjust to your palette)
+
+// Track which voxel IDs we've seen in the seed data
+std::unordered_map<Voxel, uint8_t> voxel_to_palette_index;
 
 namespace
 {
@@ -189,7 +193,8 @@ struct WFCModel
         {
             String block;
             auto offset = ngh.offsets()[d];
-            String dir = "(" + String::num_int64(offset.x) + "," + String::num_int64(offset.y) + "," + String::num_int64(offset.z) + ")";
+            String dir = "(" + String::num_int64(offset.x) + "," + String::num_int64(offset.y) + "," +
+                         String::num_int64(offset.z) + ")";
             block += "Dir " + dir + " adjacency (non-zero):\n";
             for (int i = 0; i < T; ++i)
             {
@@ -236,8 +241,14 @@ WFCModel build_model_from_voxels(const Ref<VoxelDataVox> voxel_data, const Vecto
         for (int y = 0; y < size.y; ++y)
             for (int x = 0; x < size.x; ++x)
             {
-                uint8_t center = voxel_data->get_voxel_index_at(Vector3i(x, y, z));
+                uint8_t center = voxel_data->get_voxel_palette_index_at(Vector3i(x, y, z));
+                Voxel center_voxel = voxel_data->get_voxel_at(Vector3i(x, y, z));
                 prior_counts[center]++;
+
+                if (voxel_to_palette_index.find(center_voxel) == voxel_to_palette_index.end())
+                {
+                    voxel_to_palette_index[center_voxel] = center;
+                }
 
                 const auto &offs = ngh.offsets();
                 for (int k = 0; k < ngh.get_K(); ++k)
@@ -246,7 +257,7 @@ WFCModel build_model_from_voxels(const Ref<VoxelDataVox> voxel_data, const Vecto
                     int nx = x + o.x, ny = y + o.y, nz = z + o.z;
                     if (nx < 0 || ny < 0 || nz < 0 || nx >= size.x || ny >= size.y || nz >= size.z)
                         continue;
-                    uint8_t neigh = voxel_data->get_voxel_index_at(Vector3i(nx, ny, nz));
+                    uint8_t neigh = voxel_data->get_voxel_palette_index_at(Vector3i(nx, ny, nz));
                     // counts[k][neighbor_type][center_type] or vice versa — be consistent with apply step
                     counts[k][neigh][center]++; // example: row=neigh type, col=center type
                 }
@@ -277,7 +288,8 @@ WFCModel build_model_from_voxels(const Ref<VoxelDataVox> voxel_data, const Vecto
             for (int center = 0; center < T; ++center)
             {
                 double v = counts[k][neigh][center] + (use_alpha ? alpha : 0.0);
-                if(use_binary_mask) v = v > 0.01f ? 1.0f : 0.0f;
+                if (use_binary_mask)
+                    v = v > 0.01f ? 1.0f : 0.0f;
                 model.probabilities[k][neigh][center] = float(v);
                 row_sum += v;
             }
@@ -298,46 +310,12 @@ WFCModel build_model_from_voxels(const Ref<VoxelDataVox> voxel_data, const Vecto
 
     return model;
 }
-/*
-SuperpositionVoxel *init_from_single_neighbor(int target_idx, std::vector<std::unique_ptr<WFCVoxel>> &grid,
-                                              const WFCModel &model, int cond_index, uint8_t neighbor_type,
-                                              float weight = 1.0f)
-{
-    auto sp = std::make_unique<SuperpositionVoxel>();
-    for (int j = 0; j < T; ++j)
-        sp->p[j] = std::pow(model.probabilities[cond_index][neighbor_type][j], weight);// * model.priors[j];
-    if (normalize(sp->p) <= 0.0f)
-        return nullptr;
-    sp->entropy = shannon_entropy(sp->p);
-    sp->version = 0;
-    auto *raw = sp.get();
-    grid[target_idx] = std::move(sp);
-    return raw;
-}
 
-bool update_from_neighbor(SuperpositionVoxel &tgt, const WFCModel &model,
-                          int cond_index, // k from neighborhood
-                          uint8_t neighbor_type, float weight = 1.0f)
+bool VoxelWorldWFCAdjacencyGenerator::generate(std::vector<Voxel> &result_voxels, const Vector3i bounds_min,
+                                               const Vector3i bounds_max, const VoxelWorldProperties &properties)
 {
-    bool any = false;
-    for (int j = 0; j < T; ++j)
-    {
-        float before = tgt.p[j];
-        float mult = model.probabilities[cond_index][neighbor_type][j];
-        // Optional weighting for farther neighbors
-        float after = before * std::pow(mult, weight);
-        if (after != before)
-            any = true;
-        tgt.p[j] = after;
-    }
-    float sum = normalize(tgt.p);
-    if (sum <= 0.0f)
-        return true; // contradiction; caller decides
-    return any;
-}*/
+    // todo integrate this
 
-bool VoxelWorldWFCAdjacencyGenerator::generate(std::vector<Voxel> &result_voxels, const Vector3i bounds_min, const Vector3i bounds_max, const VoxelWorldProperties &properties)
-{
     if (voxel_data.is_null())
     {
         UtilityFunctions::printerr("Voxel data is not set for WFC generator.");
@@ -389,6 +367,12 @@ bool VoxelWorldWFCAdjacencyGenerator::generate(std::vector<Voxel> &result_voxels
         }
     };
     std::priority_queue<HeapNode, std::vector<HeapNode>, HeapCompare> heap;
+    std::deque<int> wave_q;
+    std::vector<uint8_t> in_wave, dirty;
+    std::vector<int> pending_heap;
+    in_wave.assign(N, 0);
+    dirty.assign(N, 0);
+    pending_heap.reserve(128);
 
     // 4) Helpers
     auto make_superposition = [&](int idx) -> SuperpositionVoxel * {
@@ -418,16 +402,17 @@ bool VoxelWorldWFCAdjacencyGenerator::generate(std::vector<Voxel> &result_voxels
         return Vector3i(x, y, z);
     };
 
-    auto init_from_single_neighbor = [&](int target_idx,
-                                        const WFCModel &model,
-                                        int dir_to_neighbor,
-                                        uint8_t neighbor_type,
-                                        float weight) -> SuperpositionVoxel* {
+    // NOTE:
+    // We may be using the transpose to the adjacency matrix, but if we don't the world is upside down...
+
+    auto init_from_single_neighbor = [&](int target_idx, const WFCModel &model, int dir_to_neighbor,
+                                         uint8_t neighbor_type, float weight) -> SuperpositionVoxel * {
         auto sp = std::make_unique<SuperpositionVoxel>();
         for (int j = 0; j < T; ++j)
-            sp->p[j] = model.priors[j] * std::pow(model.probabilities[dir_to_neighbor][j][neighbor_type],  weight);
+            sp->p[j] = model.priors[j] * std::pow(model.probabilities[dir_to_neighbor][j][neighbor_type], weight);
 
-        if (normalize(sp->p) <= 0.0f) {
+        if (normalize(sp->p) <= 0.0f)
+        {
             collapse_to_type(target_idx, DEBUG_TILE_ID, true); // contradiction marker
             return nullptr;
         }
@@ -439,16 +424,13 @@ bool VoxelWorldWFCAdjacencyGenerator::generate(std::vector<Voxel> &result_voxels
     };
 
     // Pass the index in — no pointer arithmetic
-    auto update_from_neighbor = [&](int idx,
-                                    SuperpositionVoxel &tgt,
-                                    const WFCModel &model,
-                                    int dir_to_neighbor,
-                                    uint8_t neighbor_type,
-                                    float weight) -> bool {
+    auto update_from_neighbor = [&](int idx, SuperpositionVoxel &tgt, const WFCModel &model, int dir_to_neighbor,
+                                    uint8_t neighbor_type, float weight) -> bool {
         for (int j = 0; j < T; ++j)
             tgt.p[j] *= std::pow(model.probabilities[dir_to_neighbor][j][neighbor_type], weight);
 
-        if (normalize(tgt.p) <= 0.0f) {
+        if (normalize(tgt.p) <= 0.0f)
+        {
             collapse_to_type(idx, DEBUG_TILE_ID, true);
             return false;
         }
@@ -457,10 +439,132 @@ bool VoxelWorldWFCAdjacencyGenerator::generate(std::vector<Voxel> &result_voxels
         return true;
     };
 
-    // 5) Seed Algorithm    
-    int seed_idx = index_3d(Vector3i(0,0,0), grid_size);
-    SuperpositionVoxel *seed_sp = make_superposition(seed_idx);
-    heap.push({seed_sp->entropy, seed_idx, seed_sp->version});
+    // Mixture from a source superposition p_src onto direction k
+    auto build_mixture = [&](int k, const std::array<float, T> &p_src, std::array<float, T> &mix_out) {
+        // mix_out[j] = sum_t p_src[t] * probabilities[k][t][j]
+        for (int j = 0; j < T; ++j)
+            mix_out[j] = 0.0f;
+        for (int t = 0; t < T; ++t)
+        {
+            float wt = p_src[t];
+            if (wt <= 0.0f)
+                continue;
+            const auto &row = model.probabilities[k][t];
+            for (int j = 0; j < T; ++j)
+                mix_out[j] += wt * row[j];
+        }
+        // No normalization here; we multiply and then normalize target
+    };
+
+    // Apply a floating mask to target; returns changed/contradiction flag
+    auto apply_mix_to_target = [&](int idx, SuperpositionVoxel &tgt, const std::array<float, T> &mix) -> bool {
+        bool any = false;
+        for (int j = 0; j < T; ++j)
+        {
+            float before = tgt.p[j];
+            float after = before * mix[j];
+            if (after != before)
+                any = true;
+            tgt.p[j] = after;
+        }
+        if (normalize(tgt.p) <= 0.0f)
+        {
+            collapse_to_type(idx, DEBUG_TILE_ID, true);
+            return true;
+        }
+        if (any)
+        {
+            tgt.entropy = shannon_entropy(tgt.p);
+            tgt.version += 1;
+        }
+        return any;
+    };
+
+    // --- Optional: bootstrap from an initial generator pass ---
+    bool bootstrapped = false;
+    bool created_any_superposition = false;
+
+    if (initial_state.is_valid())
+    {
+        std::vector<Voxel> initial_voxels(result_voxels.size(), Voxel::create_air_voxel());
+        if (initial_state->generate(initial_voxels, bounds_min, bounds_max, properties))
+        {
+
+            auto get_initial_at_world = [&](const Vector3i &wp) -> Voxel {
+                int idx = properties.pos_to_voxel_index(wp);
+                if (idx < 0 || idx >= (int)initial_voxels.size())
+                    return Voxel::create_air_voxel();
+                return initial_voxels[idx];
+            };
+
+            std::vector<int> collapsed_indices;
+            std::vector<uint8_t> collapsed_types;
+            collapsed_indices.reserve(N);
+            collapsed_types.reserve(N);
+
+            // Collapse all non-air directly to their type
+            for (int i = 0; i < N; ++i)
+            {
+                Voxel v = get_initial_at_world(pos_from_index(i) + bounds_min);
+                uint8_t t = 0;
+                if (voxel_to_palette_index.find(v) == voxel_to_palette_index.end())
+                {
+                    t = voxel_to_palette_index[v];
+                }
+
+                if (t == 0)
+                    continue; // leave air as EMPTY
+                collapse_to_type(i, t, /*debug*/ false);
+                collapsed_indices.push_back(i);
+                collapsed_types.push_back(t);
+            }
+
+            // Propagate constraints from collapsed cells
+            const auto &offs = ngh.offsets();
+            const int K = ngh.get_K();
+            for (size_t c = 0; c < collapsed_indices.size(); ++c)
+            {
+                int idx = collapsed_indices[c];
+                uint8_t t = collapsed_types[c];
+                Vector3i pos = pos_from_index(idx);
+
+                for (int k = 0; k < K; ++k)
+                {
+                    Vector3i np = pos + offs[k];
+                    if (!in_bounds(np, grid_size))
+                        continue;
+                    int nidx = index_3d(np, grid_size);
+
+                    if (grid[nidx]->kind() == WFCVoxel::Kind::EMPTY)
+                    {
+                        if (auto *tgt = init_from_single_neighbor(nidx, model, k, t, /*w*/ 1.0f))
+                        {
+                            created_any_superposition = true;
+                            heap.push({tgt->entropy, nidx, tgt->version});
+                        }
+                    }
+                    else if (grid[nidx]->kind() == WFCVoxel::Kind::SUPERPOSITION)
+                    {
+                        auto *tgt = static_cast<SuperpositionVoxel *>(grid[nidx].get());
+                        if (update_from_neighbor(nidx, *tgt, model, k, t, /*w*/ 1.0f))
+                        {
+                            heap.push({tgt->entropy, nidx, tgt->version});
+                        }
+                    }
+                }
+            }
+
+            bootstrapped = true;
+        }
+    }
+
+    // If nothing was created by the bootstrap, seed entropy as before
+    if (!bootstrapped || !created_any_superposition)
+    {
+        int seed_idx = index_3d((seed_position_normalized * grid_size).floor(), grid_size);
+        SuperpositionVoxel *seed_sp = make_superposition(seed_idx);
+        heap.push({seed_sp->entropy, seed_idx, seed_sp->version});
+    }
 
     const auto &offs = ngh.offsets();
 
@@ -479,6 +583,13 @@ bool VoxelWorldWFCAdjacencyGenerator::generate(std::vector<Voxel> &result_voxels
         int t = weighted_sample(sp->p, rng);
         collapse_to_type(node.index, static_cast<uint8_t>(t), false);
 
+        // Seed neighbors into wave if they changed/created
+        if (!in_wave[node.index])
+        {
+            wave_q.push_back(node.index);
+            in_wave[node.index] = 1;
+        }
+
         // Neighbors
         Vector3i pos = pos_from_index(node.index);
         for (int k = 0; k < K; ++k)
@@ -487,7 +598,7 @@ bool VoxelWorldWFCAdjacencyGenerator::generate(std::vector<Voxel> &result_voxels
             if (!in_bounds(np, grid_size))
                 continue;
             int nidx = index_3d(np, grid_size);
-            float w = 1.0;//ngh.weight_for_offset(k);
+            float w = 1.0; // ngh.weight_for_offset(k);
 
             if (grid[nidx]->kind() == WFCVoxel::Kind::EMPTY)
             {
@@ -505,6 +616,125 @@ bool VoxelWorldWFCAdjacencyGenerator::generate(std::vector<Voxel> &result_voxels
                 }
             }
         }
+
+        if (enable_superposition_propagation)
+        {
+            std::array<float, T> mix;
+            while (!wave_q.empty())
+            {
+                int src_idx = wave_q.front();
+                wave_q.pop_front();
+                in_wave[src_idx] = 0;
+
+                // Source can be collapsed or superposition
+                Vector3i spos = pos_from_index(src_idx);
+                bool src_is_sp = (grid[src_idx]->kind() == WFCVoxel::Kind::SUPERPOSITION);
+                int src_type = -1;
+                const std::array<float, T> *src_p = nullptr;
+
+                if (src_is_sp)
+                {
+                    auto *src_sp = static_cast<SuperpositionVoxel *>(grid[src_idx].get());
+                    src_p = &src_sp->p;
+                    // If it’s degenerate (nearly one-hot), treat as collapsed fast-path
+                    // Detect single non-zero bin
+                    int count = 0, last = -1;
+                    for (int t = 0; t < T; ++t)
+                        if (src_sp->p[t] > 0.0f)
+                        {
+                            count++;
+                            last = t;
+                            if (count > 1)
+                                break;
+                        }
+                    if (count == 1)
+                    {
+                        src_is_sp = false;
+                        src_type = last;
+                    }
+                }
+                else if (grid[src_idx]->kind() == WFCVoxel::Kind::COLLAPSED)
+                {
+                    auto *src_cl = static_cast<CollapsedVoxel *>(grid[src_idx].get());
+                    src_type = src_cl->type;
+                }
+                else
+                {
+                    continue;
+                }
+
+                for (int k = 0; k < K; ++k)
+                {
+                    Vector3i np = spos + offs[k];
+                    if (!in_bounds(np, grid_size))
+                        continue;
+                    int nidx = index_3d(np, grid_size);
+
+                    if (grid[nidx]->kind() != WFCVoxel::Kind::SUPERPOSITION)
+                        continue;
+                    auto *tgt = static_cast<SuperpositionVoxel *>(grid[nidx].get());
+
+                    bool changed = false;
+                    if (src_type >= 0)
+                    {
+                        // collapsed neighbor: multiply by conditional row
+                        for (int j = 0; j < T; ++j)
+                        {
+                            float before = tgt->p[j];
+                            float after = before * model.probabilities[k][src_type][j];
+                            if (after != before)
+                                changed = true;
+                            tgt->p[j] = after;
+                        }
+                        if (normalize(tgt->p) <= 0.0f)
+                        {
+                            collapse_to_type(nidx, DEBUG_TILE_ID, true);
+                            dirty[nidx] = 1;
+                            continue;
+                        }
+                        if (changed)
+                        {
+                            tgt->entropy = shannon_entropy(tgt->p);
+                            tgt->version += 1;
+                        }
+                    }
+                    else
+                    {
+                        // superposition neighbor: build mixture and apply
+                        build_mixture(k, *src_p, mix);
+                        changed = apply_mix_to_target(nidx, *tgt, mix);
+                    }
+
+                    if (changed)
+                    {
+                        dirty[nidx] = 1;
+                        if (!in_wave[nidx])
+                        {
+                            wave_q.push_back(nidx);
+                            in_wave[nidx] = 1;
+                        }
+                    }
+                }
+            }
+
+            // Batch-push changed nodes after wave settles
+            pending_heap.clear();
+            for (int i = 0; i < N; ++i)
+            {
+                if (!dirty[i])
+                    continue;
+                dirty[i] = 0;
+                if (grid[i]->kind() != WFCVoxel::Kind::SUPERPOSITION)
+                    continue;
+                auto *t = static_cast<SuperpositionVoxel *>(grid[i].get());
+                pending_heap.push_back(i);
+            }
+            for (int idx : pending_heap)
+            {
+                auto *t = static_cast<SuperpositionVoxel *>(grid[idx].get());
+                heap.push({t->entropy, idx, t->version});
+            }
+        }
     }
 
     for (int i = 0; i < N; ++i)
@@ -514,6 +744,9 @@ bool VoxelWorldWFCAdjacencyGenerator::generate(std::vector<Voxel> &result_voxels
         if (result_idx < 0 || result_idx >= result_voxels.size())
             continue;
 
+        if (!grid[i] || (!result_voxels[result_idx].is_air() && only_replace_air))
+            continue;
+
         if (grid[i]->kind() == WFCVoxel::Kind::COLLAPSED)
         {
             auto *cv = static_cast<CollapsedVoxel *>(grid[i].get());
@@ -521,7 +754,8 @@ bool VoxelWorldWFCAdjacencyGenerator::generate(std::vector<Voxel> &result_voxels
             // If debug, use a special magenta tile
             if (cv->is_debug)
             {
-                result_voxels[result_idx] = Voxel::create_voxel(DEBUG_TILE_ID, Color(1.0f, 0.0f, 1.0f));
+                if (show_contradictions)
+                    result_voxels[result_idx] = Voxel::create_voxel(DEBUG_TILE_ID, Color(1.0f, 0.0f, 1.0f));
             }
             else if (id > 0)
             {

@@ -638,7 +638,6 @@ bool VoxelWorldWFCTileGenerator::generate(std::vector<Voxel> &result_voxels, con
 
     // Seed at grid center (fallback to 0)
     {
-        UtilityFunctions::print((Vector3(grid_size) * seed_position_normalized).floor());
         int seed_idx = index_3d((Vector3(grid_size) * seed_position_normalized).floor(), grid_size);
         if (seed_idx < 0 || seed_idx >= N)
             seed_idx = 0;
@@ -713,8 +712,6 @@ bool VoxelWorldWFCTileGenerator::generate(std::vector<Voxel> &result_voxels, con
             }
         }
     }
-
-    return false;
 
     for (int i = 0; i < N; ++i)
     {

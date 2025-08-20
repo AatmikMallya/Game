@@ -35,7 +35,7 @@ func _input(event) -> void:
 		camera.rotation.x += -event.relative.y * 0.025 * look_sensitivity;
 		camera.rotation.x = clamp(camera.rotation.x, -PI/2.2, PI/2.2)
 
-func _process_flying(delta: float) -> void:
+func _process_flying(_delta: float) -> void:
 	var wish_dir_raw = Input.get_vector("move_left", "move_right", "move_forward", "move_backward");
 	var direction := (camera.global_basis * Vector3(wish_dir_raw.x, 0, wish_dir_raw.y)).normalized();
 	if Input.is_action_pressed("move_up"):

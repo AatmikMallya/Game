@@ -36,21 +36,22 @@ layout(std430, set = 1, binding = 3) restrict buffer Camera {
 // ----------------------------------- FUNCTIONS -----------------------------------
 
 vec3 blinnPhongShading(vec3 baseColor, vec3 normal, vec3 lightDir, vec3 lightColor, vec3 viewDir, float shadow) {
-    // return baseColor;
-    vec3 diffuse = max(dot(normal, lightDir), 0.0) * baseColor;
-    vec3 H = normalize(lightDir + viewDir);
-    float NdotH = max(dot(normal, H), 0);
+    float NdotL = max(dot(normal, lightDir), 0.0);
 
-    // vec3 ambient = baseColor * sampleSkyColor(reflect(viewDir, normal));
-    vec3 ambient = baseColor * voxelWorldProperties.sky_color.rgb;
-    vec3 specular = pow(NdotH, 10.0) * lightColor;
-    // vec3 specular = 0.5 * pow(max(dot(reflect(-lightDir, normal), viewDir), 0.0), 100.0) * lightColor;
+    vec3 diffuse = NdotL * baseColor;
+
+    vec3 specular = vec3(0.0);
+    vec3 H = normalize(lightDir + viewDir);
+    float NdotH = max(dot(normal, H), 0.0);
+    specular = pow(NdotH, 10.0) * lightColor;
+
+    vec3 ambient = baseColor;
+
     vec3 result = 0.25 * shadow * specular;
-    result += 1.0 * (shadow * 0.5 + 0.5) * diffuse;
+    result += (shadow * 0.5 + 0.5) * diffuse;
     result += 0.2 * ambient;
     return result;
 }
-
 
 layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
 void main() {
@@ -79,8 +80,6 @@ void main() {
         normal = normalize(normal);
         vec3 voxel_pos = vec3(grid_position) * voxelWorldProperties.scale;// + 0.5;
         vec3 baseColor = vec3(grid_position) / voxelWorldProperties.grid_size.xyz;
-        // color = hsv2rgb(rgb2hsv(baseColor));
-        // voxel.data = ~0;
         float emission = getVoxelEmission(voxel);
         color = getVoxelColor(voxel, grid_position) * (1 + emission);
         if(isVoxelLiquid(voxel))
@@ -88,13 +87,15 @@ void main() {
             color += vec3(0.05 * sin(0.0167 * voxelWorldProperties.frame + 0.2 * (grid_position.x + grid_position.y + grid_position.z)));
             color += vec3(((voxel.data & 0xFu) > 0) ? 0.5 : 0);
         }
-        color *= 0.05 * dot(normal, vec3(0.5, 1.0, 0.0)) + 0.95; //discolor different faces slightly.
+
+        // color *= 0.05 * dot(normal, vec3(0.5, 1.0, 0.0)) + 0.95; //discolor different faces slightly.
         vec3 voxel_view_dir = normalize(camera.position.xyz - voxel_pos);
 
         // direct illumination
         if(emission < 1) {
             float shadow = computeShadow(hitPos, normal, voxelWorldProperties.sun_direction.xyz);
-            color = blinnPhongShading(color, normal, voxelWorldProperties.sun_direction.xyz, voxelWorldProperties.sun_color.rgb, voxel_view_dir, shadow);
+            float ao = computeAmbientOcclusion(hitPos, grid_position, normal) * 0.7 + 0.3;
+            color = ao * blinnPhongShading(color, normal, normalize(voxelWorldProperties.sun_direction.xyz), voxelWorldProperties.sun_color.rgb, voxel_view_dir, shadow);
         }
     } else {
         color = sampleSkyColor(ray_dir);
@@ -105,6 +106,7 @@ void main() {
     //     color = vec3(step_count * 0.001);
     // else
     //     color = vec3(1,0,0);
+
 
     float depth = 0.0f;
     imageStore(outputImage, pos, vec4(color, 1.0));

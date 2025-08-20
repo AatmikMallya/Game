@@ -50,7 +50,7 @@ class VoxelDataVox : public VoxelData
         return voxels[index3(p.x, p.y, p.z)];
     }
 
-    uint8_t get_voxel_index_at(Vector3i p) const
+    uint8_t get_voxel_palette_index_at(Vector3i p) const
     {
         if (p.x < 0 || p.y < 0 || p.z < 0 || p.x >= size.x || p.y >= size.y || p.z >= size.z)
             return 0;

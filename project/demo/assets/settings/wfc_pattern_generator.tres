@@ -1,9 +1,16 @@
-[gd_resource type="VoxelWorldWFCPatternGenerator" load_steps=2 format=3 uid="uid://erauajcu6awn"]
+[gd_resource type="VoxelWorldWFCPatternGenerator" load_steps=4 format=3 uid="uid://erauajcu6awn"]
+
+[sub_resource type="VoxelDataVox" id="VoxelDataVox_dwf55"]
+file_path = "res://demo/assets/voxels/simpler_field_no_trees.vox"
+
+[sub_resource type="VoxelWorldDataLoader" id="VoxelWorldDataLoader_116fd"]
+voxel_data = SubResource("VoxelDataVox_dwf55")
 
 [sub_resource type="VoxelDataVox" id="VoxelDataVox_j5lb4"]
-file_path = "res://demo/assets/voxels/simpler_field_no_trees.vox"
+file_path = "res://demo/assets/voxels/simple_field.vox"
 
 [resource]
 voxel_data = SubResource("VoxelDataVox_j5lb4")
 only_replace_air = false
-target_grid_size = Vector3i(64, 16, 64)
+initial_state = SubResource("VoxelWorldDataLoader_116fd")
+target_grid_size = Vector3i(32, 32, 32)
