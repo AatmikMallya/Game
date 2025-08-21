@@ -16,9 +16,15 @@ class VoxelWorldWFCAdjacencyGenerator : public WaveFunctionCollapseGenerator {
     GDCLASS(VoxelWorldWFCAdjacencyGenerator, WaveFunctionCollapseGenerator)
 
 public:
+    enum NeighborhoodType {
+        NEIGHBORHOOD_MOORE = 0,
+        NEIGHBORHOOD_VON_NEUMANN = 1
+    };
+
     VoxelWorldWFCAdjacencyGenerator() = default;
     ~VoxelWorldWFCAdjacencyGenerator() override = default;
 
+    // Existing
     void set_voxel_data(const Ref<VoxelData>& data) { voxel_data = data; }
     Ref<VoxelData> get_voxel_data() const { return voxel_data; }
 
@@ -37,14 +43,24 @@ public:
     void set_initial_state(const Ref<VoxelWorldGeneratorCPUPass>& p_initial_state) { initial_state = p_initial_state; }
     Ref<VoxelWorldGeneratorCPUPass> get_initial_state() const { return initial_state; }
 
+    void set_neighborhood_type(NeighborhoodType type) { neighborhood_type = type; }
+    NeighborhoodType get_neighborhood_type() const { return neighborhood_type; }
+
+    void set_neighborhood_radius(int r) { neighborhood_radius = r; }
+    int get_neighborhood_radius() const { return neighborhood_radius; }
+
+    void set_use_exhaustive_offsets(bool use) { use_exhaustive_offsets = use; }
+    bool get_use_exhaustive_offsets() const { return use_exhaustive_offsets; }
+
     bool generate(std::vector<Voxel> &result_voxels, const Vector3i bounds_min, const Vector3i bounds_max, const VoxelWorldProperties &properties) override;
 
     static void _bind_methods() {
+        // Existing bindings...
         ClassDB::bind_method(D_METHOD("set_voxel_data", "path"), &VoxelWorldWFCAdjacencyGenerator::set_voxel_data);
         ClassDB::bind_method(D_METHOD("get_voxel_data"), &VoxelWorldWFCAdjacencyGenerator::get_voxel_data);
         ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "voxel_data", PROPERTY_HINT_RESOURCE_TYPE, "VoxelDataVox"), "set_voxel_data", "get_voxel_data");
 
-                ClassDB::bind_method(D_METHOD("set_seed_position_normalized", "pos"), &VoxelWorldWFCAdjacencyGenerator::set_seed_position_normalized);
+        ClassDB::bind_method(D_METHOD("set_seed_position_normalized", "pos"), &VoxelWorldWFCAdjacencyGenerator::set_seed_position_normalized);
         ClassDB::bind_method(D_METHOD("get_seed_position_normalized"), &VoxelWorldWFCAdjacencyGenerator::get_seed_position_normalized);
         ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "seed_position_normalized"), "set_seed_position_normalized", "get_seed_position_normalized");
 
@@ -63,17 +79,36 @@ public:
         ClassDB::bind_method(D_METHOD("set_initial_state", "initial_state"), &VoxelWorldWFCAdjacencyGenerator::set_initial_state);
         ClassDB::bind_method(D_METHOD("get_initial_state"), &VoxelWorldWFCAdjacencyGenerator::get_initial_state);
         ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "initial_state", PROPERTY_HINT_RESOURCE_TYPE, "VoxelWorldGeneratorCPUPass"), "set_initial_state", "get_initial_state");
+
+        BIND_ENUM_CONSTANT(NEIGHBORHOOD_MOORE);
+        BIND_ENUM_CONSTANT(NEIGHBORHOOD_VON_NEUMANN);
+
+        ClassDB::bind_method(D_METHOD("set_neighborhood_type", "type"), &VoxelWorldWFCAdjacencyGenerator::set_neighborhood_type);
+        ClassDB::bind_method(D_METHOD("get_neighborhood_type"), &VoxelWorldWFCAdjacencyGenerator::get_neighborhood_type);
+        ADD_PROPERTY(PropertyInfo(Variant::INT, "neighborhood_type", PROPERTY_HINT_ENUM, "Moore,VonNeumann"), "set_neighborhood_type", "get_neighborhood_type");
+
+        ClassDB::bind_method(D_METHOD("set_neighborhood_radius", "radius"), &VoxelWorldWFCAdjacencyGenerator::set_neighborhood_radius);
+        ClassDB::bind_method(D_METHOD("get_neighborhood_radius"), &VoxelWorldWFCAdjacencyGenerator::get_neighborhood_radius);
+        ADD_PROPERTY(PropertyInfo(Variant::INT, "neighborhood_radius", PROPERTY_HINT_RANGE, "1,10,1"), "set_neighborhood_radius", "get_neighborhood_radius");
+
+        ClassDB::bind_method(D_METHOD("set_use_exhaustive_offsets", "use"), &VoxelWorldWFCAdjacencyGenerator::set_use_exhaustive_offsets);
+        ClassDB::bind_method(D_METHOD("get_use_exhaustive_offsets"), &VoxelWorldWFCAdjacencyGenerator::get_use_exhaustive_offsets);
+        ADD_PROPERTY(PropertyInfo(Variant::BOOL, "use_exhaustive_offsets"), "set_use_exhaustive_offsets", "get_use_exhaustive_offsets");
     }
 
 private:
     Ref<VoxelDataVox> voxel_data;
-    
     Vector3 seed_position_normalized = Vector3(0.5, 0.5, 0.5);
     bool enable_superposition_propagation = true;
     bool show_contradictions = true;
     bool only_replace_air = true;
-
     Ref<VoxelWorldGeneratorCPUPass> initial_state;
+
+    NeighborhoodType neighborhood_type = NEIGHBORHOOD_MOORE;
+    int neighborhood_radius = 1;
+    bool use_exhaustive_offsets = true;
 };
+
+VARIANT_ENUM_CAST(VoxelWorldWFCAdjacencyGenerator::NeighborhoodType);
 
 #endif // VOXEL_WORLD_WFC_ADJACENCY_GENERATOR_H

@@ -16,6 +16,10 @@ class VoxelWorldWFCPatternGenerator : public WaveFunctionCollapseGenerator {
     GDCLASS(VoxelWorldWFCPatternGenerator, WaveFunctionCollapseGenerator)
 
 public:
+    enum NeighborhoodType {
+        NEIGHBORHOOD_MOORE = 0,
+        NEIGHBORHOOD_VON_NEUMANN = 1
+    };
     VoxelWorldWFCPatternGenerator() = default;
     ~VoxelWorldWFCPatternGenerator() override = default;
 
@@ -33,6 +37,15 @@ public:
 
     void set_only_replace_air(bool only_air) { only_replace_air = only_air; }
     bool get_only_replace_air() const { return only_replace_air; }
+
+        void set_neighborhood_type(NeighborhoodType type) { neighborhood_type = type; }
+    NeighborhoodType get_neighborhood_type() const { return neighborhood_type; }
+
+    void set_neighborhood_radius(int r) { neighborhood_radius = r; }
+    int get_neighborhood_radius() const { return neighborhood_radius; }
+
+    void set_use_exhaustive_offsets(bool use) { use_exhaustive_offsets = use; }
+    bool get_use_exhaustive_offsets() const { return use_exhaustive_offsets; }
 
     void set_initial_state(const Ref<VoxelWorldGeneratorCPUPass>& p_initial_state) { initial_state = p_initial_state; }
     Ref<VoxelWorldGeneratorCPUPass> get_initial_state() const { return initial_state; }
@@ -63,6 +76,21 @@ public:
         ClassDB::bind_method(D_METHOD("set_initial_state", "initial_state"), &VoxelWorldWFCPatternGenerator::set_initial_state);
         ClassDB::bind_method(D_METHOD("get_initial_state"), &VoxelWorldWFCPatternGenerator::get_initial_state);
         ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "initial_state", PROPERTY_HINT_RESOURCE_TYPE, "VoxelWorldGeneratorCPUPass"), "set_initial_state", "get_initial_state");
+
+        BIND_ENUM_CONSTANT(NEIGHBORHOOD_MOORE);
+        BIND_ENUM_CONSTANT(NEIGHBORHOOD_VON_NEUMANN);
+
+        ClassDB::bind_method(D_METHOD("set_neighborhood_type", "type"), &VoxelWorldWFCPatternGenerator::set_neighborhood_type);
+        ClassDB::bind_method(D_METHOD("get_neighborhood_type"), &VoxelWorldWFCPatternGenerator::get_neighborhood_type);
+        ADD_PROPERTY(PropertyInfo(Variant::INT, "neighborhood_type", PROPERTY_HINT_ENUM, "Moore,VonNeumann"), "set_neighborhood_type", "get_neighborhood_type");
+
+        ClassDB::bind_method(D_METHOD("set_neighborhood_radius", "radius"), &VoxelWorldWFCPatternGenerator::set_neighborhood_radius);
+        ClassDB::bind_method(D_METHOD("get_neighborhood_radius"), &VoxelWorldWFCPatternGenerator::get_neighborhood_radius);
+        ADD_PROPERTY(PropertyInfo(Variant::INT, "neighborhood_radius", PROPERTY_HINT_RANGE, "1,10,1"), "set_neighborhood_radius", "get_neighborhood_radius");
+
+        ClassDB::bind_method(D_METHOD("set_use_exhaustive_offsets", "use"), &VoxelWorldWFCPatternGenerator::set_use_exhaustive_offsets);
+        ClassDB::bind_method(D_METHOD("get_use_exhaustive_offsets"), &VoxelWorldWFCPatternGenerator::get_use_exhaustive_offsets);
+        ADD_PROPERTY(PropertyInfo(Variant::BOOL, "use_exhaustive_offsets"), "set_use_exhaustive_offsets", "get_use_exhaustive_offsets");
     }
 
 private:
@@ -73,7 +101,13 @@ private:
     bool show_contradictions = true;
     bool only_replace_air = true;
 
+    NeighborhoodType neighborhood_type = NEIGHBORHOOD_MOORE;
+    int neighborhood_radius = 1;
+    bool use_exhaustive_offsets = true;
+
     Ref<VoxelWorldGeneratorCPUPass> initial_state;
 };
+
+VARIANT_ENUM_CAST(VoxelWorldWFCPatternGenerator::NeighborhoodType);
 
 #endif // VOXEL_WORLD_WFC_PATTERN_GENERATOR_H

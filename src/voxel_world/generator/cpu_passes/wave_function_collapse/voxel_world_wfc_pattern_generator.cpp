@@ -179,15 +179,17 @@ struct PatternModel
     // compat[k][a][b] == 1 means pattern b can be placed in direction k relative to a without conflict.
     std::vector<std::vector<std::vector<uint32_t>>> compat; // [K][P][Pbits/32]
 
-    bool is_compatible(int k, int a, int b) const
+    bool is_compatible(int d, int a, int b) const
     {
-        if (k < 0 || k >= K || a < 0 || a >= static_cast<int>(patterns.size()) || b < 0 ||
-            b >= static_cast<int>(patterns.size()))
+        if (d < 0 || d >= D ||
+            a < 0 || a >= (int)patterns.size() ||
+            b < 0 || b >= (int)patterns.size())
             return false;
-        const auto &mask = compat[k][a];
-        int byte_index = b >> 5;
-        int bit_index = b & 31;
-        return (mask[byte_index] & (1 << bit_index)) != 0;
+
+        const auto &mask = compat[d][a];
+        int word = b >> 5;
+        int bit  = b & 31;
+        return (mask[word] & (1u << bit)) != 0;
     }
 };
 
@@ -252,8 +254,7 @@ static Pattern extract_pattern_voxels(const Ref<VoxelDataVox> &vox, const Vector
 {
     Pattern pat;
     pat.voxels.reserve(1 + ngh.get_K());
-    pat.voxels.push_back(vox->get_voxel_at(center));
-    for (auto &off : ngh.offsets())
+    for (auto &off : ngh.pattern())
         pat.voxels.push_back(vox->get_voxel_at(center + off));
     return pat;
 }
@@ -262,15 +263,8 @@ static bool patterns_compatible_delta(const Neighborhood &ngh, const Pattern &A,
                                       const Vector3i &delta)
 {
     // S = {0} ∪ offsets(); A/B.voxels are indexed: 0=center, 1..K = offsets()[i]
-    const auto &offs = ngh.offsets();
+    auto offs = ngh.pattern();
     const int K = (int)offs.size();
-
-    // center in A maps to -delta in B
-    {
-        int idxB = ngh.index_including_center_for(Vector3i(-delta.x, -delta.y, -delta.z));
-        if (idxB >= 0 && A.voxels[0] != B.voxels[idxB])
-            return false;
-    }
 
     for (int i = 0; i < K; ++i)
     {
@@ -279,7 +273,7 @@ static bool patterns_compatible_delta(const Neighborhood &ngh, const Pattern &A,
         int idxB = ngh.index_including_center_for(posB);
         if (idxB >= 0)
         {
-            if (A.voxels[i + 1] != B.voxels[idxB])
+            if (A.voxels[i] != B.voxels[idxB])
                 return false;
         }
     }
@@ -472,7 +466,7 @@ void debug_place_and_print_patterns(PatternModel &model, const Neighborhood &ngh
     }
 }
 
-void debug_place_pattern_pairs(PatternModel &model, const Neighborhood &ngh, VoxelWorldRIDs &voxel_world_rids,
+void debug_place_pattern_pairs(PatternModel &model, const Neighborhood &ngh,  std::vector<Voxel> &result_voxels,
                                const VoxelWorldProperties &properties, int N_examples, uint32_t rng_seed = 12345)
 {
     int P = static_cast<int>(model.patterns.size());
@@ -480,7 +474,6 @@ void debug_place_pattern_pairs(PatternModel &model, const Neighborhood &ngh, Vox
         return;
 
     const auto &grid_size = properties.grid_size;
-    std::vector<Voxel> result_voxels(voxel_world_rids.voxel_count, Voxel::create_air_voxel());
 
     // Base spacing + extra padding around each 2‑pattern block
     const int gap_x = 1 + 1; // +1 padding around pair
@@ -524,17 +517,19 @@ void debug_place_pattern_pairs(PatternModel &model, const Neighborhood &ngh, Vox
         int a = priors_dist(rng);
 
         // Pick random direction
-        std::uniform_int_distribution<int> dir_dist(0, ngh.get_K() - 1);
-        int k = dir_dist(rng);
-        Vector3i dir_offset = ngh.offsets()[k];
+        const auto &deltas = ngh.center_deltas();
+        std::uniform_int_distribution<int> dir_dist(0, deltas.size() - 1);
+        int d = dir_dist(rng);
+        Vector3i dir_offset = deltas[d];
 
         // Pick random compatible neighbor b
-        const auto &mask = model.compat[k][a];
+        const auto &mask = model.compat[d][a];
         std::vector<int> allowed;
         allowed.reserve(P);
         for (int b_id = 0; b_id < P; ++b_id)
         {
-            if (model.is_compatible(k, a, b_id))
+            // if()
+            if(model.compat[d][a][b_id >> 5] & (1u << (b_id & 31)))
             {
                 allowed.push_back(b_id);
             }
@@ -547,7 +542,7 @@ void debug_place_pattern_pairs(PatternModel &model, const Neighborhood &ngh, Vox
         // --- Place pattern a ---
         for (int slot = 0; slot < ngh.get_K() + 1; ++slot)
         {
-            Vector3i local = (slot == 0) ? Vector3i(0, 0, 0) : ngh.offsets()[slot - 1];
+            Vector3i local = ngh.pattern()[slot];
             Vector3i pos_world = cursor + (local + Vector3i(1, 1, 1)); // center offset in block
             int idx = properties.pos_to_voxel_index(pos_world);
             if (idx >= 0 && idx < (int)result_voxels.size())
@@ -558,7 +553,7 @@ void debug_place_pattern_pairs(PatternModel &model, const Neighborhood &ngh, Vox
         Vector3i b_origin = cursor + (dir_offset * 1) + Vector3i(1, 1, 1);
         for (int slot = 0; slot < ngh.get_K() + 1; ++slot)
         {
-            Vector3i local = (slot == 0) ? Vector3i(0, 0, 0) : ngh.offsets()[slot - 1];
+            Vector3i local = ngh.pattern()[slot];
             Vector3i pos_world = b_origin + local;
             int idx = properties.pos_to_voxel_index(pos_world);
             if (idx >= 0 && idx < (int)result_voxels.size())
@@ -578,8 +573,6 @@ void debug_place_pattern_pairs(PatternModel &model, const Neighborhood &ngh, Vox
             }
         }
     }
-
-    voxel_world_rids.set_voxel_data(result_voxels);
 }
 
 struct CompatMismatch
@@ -623,11 +616,19 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
     }
     voxel_data->load();
 
-    // Config
-    // Moore neighborhood(1, true);
-    VonNeumann neighborhood(2, true);
+    Neighborhood &ngh = Moore(neighborhood_radius, use_exhaustive_offsets);
 
-    const Neighborhood &ngh = neighborhood;
+    switch (neighborhood_type)
+    {
+    // case NEIGHBORHOOD_MOORE:
+    //     ngh = Moore(neighborhood_radius, use_exhaustive_offsets);
+    //     break;    
+    case NEIGHBORHOOD_VON_NEUMANN:
+        ngh = VonNeumann(neighborhood_radius, use_exhaustive_offsets);
+        break;
+    default:
+        break;
+    }
 
     // Template extraction
     const Vector3i template_size = voxel_data->get_size();
@@ -637,12 +638,12 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
     {
         ERR_PRINT("PatternWFC: No patterns to work with.");
         return false;
-    }
+    }  
 
     // debug_place_and_print_patterns(model, ngh, result_voxels, properties);
     // UtilityFunctions::print("PatternWFC: Amount of mismatches between compat and exhaustive check: ",
-    // validate_compat(model).size()); debug_place_pattern_pairs(model, ngh, voxel_world_rids, properties, 10000,
-    // Time::get_singleton()->get_unix_time_from_system());
+    // validate_compat(model).size(); 
+    // debug_place_pattern_pairs(model, ngh, result_voxels, properties, 10000, Time::get_singleton()->get_unix_time_from_system());
     // return true;
 
     // Output grid size
@@ -689,7 +690,7 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
         {
             if (a.entropy != b.entropy)
                 return a.entropy > b.entropy; // min-heap on entropy
-            return a.tick < b.tick;           // larger tick = more recent
+            return a.tick > b.tick;           // larger tick = more recent
         }
     };
 
@@ -768,6 +769,7 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
         if (!any_changed)
             return false;
 
+        tgt.version += 1;
         tgt.entropy = shannon_entropy(model.priors, tgt.domain_bits);
         return true;
     };
@@ -1089,6 +1091,9 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
             heap.push(HeapNode{seed_sp->entropy, seed_idx, seed_sp->version, global_tick++});
     }
 
+    const auto &deltas = ngh.center_deltas();
+    const int D = static_cast<int>(deltas.size());
+
     // Main loop
     while (!heap.empty())
     {
@@ -1109,8 +1114,6 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
 
         // Propagate to neighbors
         Vector3i pos = pos_from_index(node.index);
-        const auto &deltas = ngh.center_deltas();
-        const int D = static_cast<int>(deltas.size());
 
         // Seed list of neighbors changed by the immediate single-pattern propagation
         if (enable_superposition_propagation)
@@ -1154,8 +1157,6 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
                 bool changed = apply_compat_single(*tgt, d, pat_id);
                 if (changed)
                 {
-                    if (tgt->version < ~0u)
-                        tgt->version += 1;
                     if (enable_superposition_propagation)
                     {
                         if (tgt->version < ~0u && !in_wave[nidx])
@@ -1269,9 +1270,6 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
 
                     if (changed)
                     {
-                        if (tgt->version < ~0u)
-                            tgt->version += 1;
-
                         // If still a valid superposition, keep propagating
                         if (tgt->version < ~0u && !in_wave[nidx])
                         {
