@@ -67,6 +67,15 @@ class VoxelDataVox : public VoxelData
         file_path = p_file_path;
     }
 
+    bool get_add_color_noise() const
+    {
+        return add_color_noise;
+    }
+    void set_add_color_noise(const bool p_add_color_noise)
+    {
+        add_color_noise = p_add_color_noise;
+    }
+
     bool get_print_voxel_palette_counts() const
     {
         return print_voxel_palette_counts;
@@ -101,6 +110,12 @@ class VoxelDataVox : public VoxelData
         ADD_PROPERTY(PropertyInfo(Variant::BOOL, "print_voxel_palette_counts"), "set_print_voxel_palette_counts",
                      "get_print_voxel_palette_counts");
 
+        
+        ClassDB::bind_method(D_METHOD("get_add_color_noise"), &VoxelDataVox::get_add_color_noise);
+        ClassDB::bind_method(D_METHOD("set_add_color_noise", "add_color_noise"), &VoxelDataVox::set_add_color_noise);
+        ADD_PROPERTY(PropertyInfo(Variant::BOOL, "add_color_noise"), "set_add_color_noise",
+                     "get_add_color_noise");
+
         ClassDB::bind_method(D_METHOD("get_filters"), &VoxelDataVox::get_filters);
         ClassDB::bind_method(D_METHOD("set_filters", "value"), &VoxelDataVox::set_filters);
         ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "filters", PROPERTY_HINT_TYPE_STRING,
@@ -117,6 +132,7 @@ class VoxelDataVox : public VoxelData
     TypedArray<VoxelDataVoxFilter> filters;
 
     bool print_voxel_palette_counts = false;
+    bool add_color_noise = false;
 
     // bool swap_y_z = true; // MagicaVoxel uses Z-up, Godot uses Y-up, so we need to swap Y and Z axes when loading
     static const uint32_t VoxelDataVox::DEFAULT_VOX_PALETTE_ABGR[256];

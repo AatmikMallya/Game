@@ -48,6 +48,17 @@ struct Voxel
         return ((data >> 24) & 0xFF) == (type & 0xFF);
     }
 
+    inline Color get_color() const
+    {
+        unsigned int packedColor = (data >> 8) & 0xFFFF;
+        return Utils::decompress_color16(packedColor);
+    }
+
+    inline int get_type() const
+    {
+        return (data >> 24) & 0xFF;
+    }
+
     // static values and methods, defined the same as on the GPU
     static const unsigned int VOXEL_TYPE_AIR = 0;
     static const unsigned int VOXEL_TYPE_SOLID = 1;
@@ -69,6 +80,11 @@ struct Voxel
     static Voxel create_air_voxel()
     {
         return create_voxel(VOXEL_TYPE_AIR, Color(0, 0, 0));
+    }
+
+    static Voxel create_solid_voxel(Color color)
+    {
+        return create_voxel(VOXEL_TYPE_SOLID, color);
     }
 };
 

@@ -181,14 +181,12 @@ struct PatternModel
 
     bool is_compatible(int d, int a, int b) const
     {
-        if (d < 0 || d >= D ||
-            a < 0 || a >= (int)patterns.size() ||
-            b < 0 || b >= (int)patterns.size())
+        if (d < 0 || d >= D || a < 0 || a >= (int)patterns.size() || b < 0 || b >= (int)patterns.size())
             return false;
 
         const auto &mask = compat[d][a];
         int word = b >> 5;
-        int bit  = b & 31;
+        int bit = b & 31;
         return (mask[word] & (1u << bit)) != 0;
     }
 };
@@ -466,7 +464,7 @@ void debug_place_and_print_patterns(PatternModel &model, const Neighborhood &ngh
     }
 }
 
-void debug_place_pattern_pairs(PatternModel &model, const Neighborhood &ngh,  std::vector<Voxel> &result_voxels,
+void debug_place_pattern_pairs(PatternModel &model, const Neighborhood &ngh, std::vector<Voxel> &result_voxels,
                                const VoxelWorldProperties &properties, int N_examples, uint32_t rng_seed = 12345)
 {
     int P = static_cast<int>(model.patterns.size());
@@ -529,7 +527,7 @@ void debug_place_pattern_pairs(PatternModel &model, const Neighborhood &ngh,  st
         for (int b_id = 0; b_id < P; ++b_id)
         {
             // if()
-            if(model.compat[d][a][b_id >> 5] & (1u << (b_id & 31)))
+            if (model.compat[d][a][b_id >> 5] & (1u << (b_id & 31)))
             {
                 allowed.push_back(b_id);
             }
@@ -622,7 +620,7 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
     {
     // case NEIGHBORHOOD_MOORE:
     //     ngh = Moore(neighborhood_radius, use_exhaustive_offsets);
-    //     break;    
+    //     break;
     case NEIGHBORHOOD_VON_NEUMANN:
         ngh = VonNeumann(neighborhood_radius, use_exhaustive_offsets);
         break;
@@ -638,13 +636,13 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
     {
         ERR_PRINT("PatternWFC: No patterns to work with.");
         return false;
-    }  
+    }
 
     // debug_place_and_print_patterns(model, ngh, result_voxels, properties);
     // UtilityFunctions::print("PatternWFC: Amount of mismatches between compat and exhaustive check: ",
-    // validate_compat(model).size(); 
-    // debug_place_pattern_pairs(model, ngh, result_voxels, properties, 10000, Time::get_singleton()->get_unix_time_from_system());
-    // return true;
+    // validate_compat(model).size();
+    // debug_place_pattern_pairs(model, ngh, result_voxels, properties, 10000,
+    // Time::get_singleton()->get_unix_time_from_system()); return true;
 
     // Output grid size
     Vector3i grid_size(properties.grid_size.x, properties.grid_size.y, properties.grid_size.z);
@@ -886,60 +884,59 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
                 return initial_voxels[idx];
             };
 
-            // Helper: try match full pattern at grid cell i; returns pattern id or -1.
-            auto match_full_pattern_at = [&](int i) -> int {
+            auto pick_weighted_pattern_at = [&](int i) -> int {
                 Vector3i c_local = pos_from_index(i);
                 Vector3i c_world = c_local + bounds_min;
 
-                // Require full neighborhood in bounds (to match extraction rules)
-                for (const auto &off : ngh.offsets())
-                {
-                    Vector3i np_local = c_local + off;
-                    if (!in_bounds(np_local, grid_size))
-                        return -1;
-                }
+                std::vector<int> candidates;
+                std::vector<float> weights;
+                candidates.reserve(P);
+                weights.reserve(P);
 
-                // Compare against each pattern (first match wins)
                 for (int pid = 0; pid < P; ++pid)
                 {
                     bool match = true;
-
-                    // Center
-                    if (get_initial_voxel(c_world) != model.patterns[pid].voxels[0])
+                    for (int k = 0; k < ngh.get_K() + 1; ++k)
                     {
-                        continue;
-                    }
-
-                    // Offsets
-                    for (int k = 0; k < ngh.get_K(); ++k)
-                    {
-                        const Vector3i off = ngh.offsets()[k];
-                        if (get_initial_voxel(c_world + off) != model.patterns[pid].voxels[k + 1])
+                        const Vector3i off = ngh.pattern()[k];
+                        const auto v = get_initial_voxel(c_world + off);
+                        const auto &pattern_voxel = model.patterns[pid].voxels[k];
+                        if (!v.is_air() && v != pattern_voxel)
                         {
                             match = false;
                             break;
                         }
                     }
-
                     if (match)
-                        return pid;
+                    {
+                        candidates.push_back(pid);
+                        weights.push_back(model.priors[pid]);
+                    }
                 }
-                return -1;
-            };
 
-            // Helper: fallback match by center voxel only; returns pattern id or -1
-            auto match_center_only = [&](int i) -> int {
-                Vector3i c_world = pos_from_index(i) + bounds_min;
-                Voxel v = get_initial_voxel(c_world);
-                for (int pid = 0; pid < P; ++pid)
+                if (candidates.empty())
+                    return -1;
+
+                // Weighted random choice
+                float total_w = 0.0f;
+                for (float w : weights)
+                    total_w += w;
+                std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+                float r = dist(rng);
+                if (total_w <= 0.0f)
                 {
-                    if (model.patterns[pid].voxels[0] == v)
-                        return pid;
+                    return candidates[std::floor(r * candidates.size())];
                 }
-                return -1;
+                r = r * total_w;
+                for (size_t ci = 0; ci < candidates.size(); ++ci)
+                {
+                    r -= weights[ci];
+                    if (r <= 0.0f)
+                        return candidates[ci];
+                }
+                return candidates.back(); // fallback
             };
 
-            // 2) Greedy collapse: non-air -> first matching pattern; air -> leave empty.
             std::vector<int> collapsed_indices;
             std::vector<int> collapsed_pids;
             collapsed_indices.reserve(N);
@@ -951,18 +948,10 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
                 Voxel v = get_initial_voxel(wpos);
                 if (v.is_air())
                 {
-                    // Explicitly keep empty; constraints will be applied later.
-                    continue;
+                    continue; // leave empty
                 }
 
-                // Try full neighborhood match first
-                int pid = match_full_pattern_at(i);
-                if (pid < 0)
-                {
-                    // Fallback: center-only match
-                    pid = match_center_only(i);
-                }
-
+                int pid = pick_weighted_pattern_at(i);
                 if (pid >= 0)
                 {
                     collapse_to_pattern(i, pid, /*is_debug*/ false);
@@ -971,7 +960,6 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
                 }
                 else
                 {
-                    // No match found — mark as debug contradiction so it's visible
                     collapse_to_pattern(i, 0, /*is_debug*/ true);
                 }
             }
@@ -1307,28 +1295,48 @@ bool VoxelWorldWFCPatternGenerator::generate(std::vector<Voxel> &result_voxels, 
         }
     }
 
-    for (int i = 0; i < N; ++i)
-    {
-        int result_idx = properties.pos_to_voxel_index(pos_from_index(i) + bounds_min);
-        if (result_idx < 0 || result_idx >= static_cast<int>(result_voxels.size()))
-            continue;
-        if (!grid[i] || (!result_voxels[result_idx].is_air() && only_replace_air))
-            continue;
-        if (grid[i]->kind() == PatternCell::Kind::COLLAPSED)
-        {
-            auto *cv = static_cast<CollapsedCell *>(grid[i].get());
-            int pid = cv->pattern_id;
-            if (cv->is_debug)
+    Vector3i scaled_size = (Vector3(grid_size) * voxel_scale).ceil();
+
+    for (int z = 0; z < scaled_size.z; ++z)
+        for (int y = 0; y < scaled_size.y; ++y)
+            for (int x = 0; x < scaled_size.x; ++x)
+            // for (int i = 0; i < N; ++i)
             {
-                if (show_contradictions)
-                    result_voxels[result_idx] = Voxel::create_voxel(Voxel::VOXEL_TYPE_SOLID, Color(1.0f, 0.0f, 1.0f));
+                Vector3i pos(x, y, z);
+                // Vector3i pos = pos_from_index(i);
+                if (!properties.isValidPos(pos + bounds_min))
+                    continue;
+
+                int i = index_3d((Vector3(pos) / voxel_scale).floor(), grid_size);
+
+                int result_idx = properties.pos_to_voxel_index(pos + bounds_min);
+                if (result_idx < 0 || result_idx >= static_cast<int>(result_voxels.size()))
+                    continue;
+                if (!grid[i] || (!result_voxels[result_idx].is_air() && only_replace_air))
+                    continue;
+                if (grid[i]->kind() == PatternCell::Kind::COLLAPSED)
+                {
+                    auto *cv = static_cast<CollapsedCell *>(grid[i].get());
+                    int pid = cv->pattern_id;
+                    if (cv->is_debug)
+                    {
+                        if (show_contradictions)
+                            result_voxels[result_idx] =
+                                Voxel::create_voxel(Voxel::VOXEL_TYPE_SOLID, Color(1.0f, 0.0f, 1.0f));
+                    }
+                    else if (pid >= 0 && pid < P)
+                    {
+                        Voxel v = model.patterns[pid].voxels[0];
+                        Color c = v.get_color();
+                        int type = v.get_type();
+                        if (add_color_noise)
+                            c = Utils::randomized_color(c);
+
+                        v = Voxel::create_voxel(type, c);
+                        result_voxels[result_idx] = v;
+                    }
+                }
             }
-            else if (pid >= 0 && pid < P)
-            {
-                result_voxels[result_idx] = model.patterns[pid].voxels[0];
-            }
-        }
-    }
 
     return true;
 }

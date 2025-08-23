@@ -22,6 +22,15 @@ public:
     void set_voxel_scale(float scale) { voxel_scale = scale; }
     float get_voxel_scale() const { return voxel_scale; }
 
+    bool get_add_color_noise() const
+    {
+        return add_color_noise;
+    }
+    void set_add_color_noise(const bool p_add_color_noise)
+    {
+        add_color_noise = p_add_color_noise;
+    }
+
     virtual bool generate(std::vector<Voxel> &result_voxels, const Vector3i bounds_min, const Vector3i bounds_max, const VoxelWorldProperties &properties) = 0;
 
     static void _bind_methods() {
@@ -32,12 +41,18 @@ public:
         ClassDB::bind_method(D_METHOD("set_target_grid_size", "size"), &WaveFunctionCollapseGenerator::set_target_grid_size);
         ClassDB::bind_method(D_METHOD("get_target_grid_size"), &WaveFunctionCollapseGenerator::get_target_grid_size);
         ADD_PROPERTY(PropertyInfo(Variant::VECTOR3I, "target_grid_size"), "set_target_grid_size", "get_target_grid_size");
+
+        ClassDB::bind_method(D_METHOD("get_add_color_noise"), &WaveFunctionCollapseGenerator::get_add_color_noise);
+        ClassDB::bind_method(D_METHOD("set_add_color_noise", "add_color_noise"), &WaveFunctionCollapseGenerator::set_add_color_noise);
+        ADD_PROPERTY(PropertyInfo(Variant::BOOL, "add_color_noise"), "set_add_color_noise",
+                     "get_add_color_noise");
     }
 
 protected:
 
     Vector3i target_grid_size = Vector3i(64, 64, 64);
     float voxel_scale = 1.0f;
+    bool add_color_noise = false;
 };
 
 #endif // WAVE_FUNCTION_COLLAPSE

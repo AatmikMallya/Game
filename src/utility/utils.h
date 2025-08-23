@@ -2,6 +2,8 @@
 #define UTILS_H
 
 #include <godot_cpp/classes/object.hpp>
+#include <godot_cpp/classes/random_number_generator.hpp>
+#include <godot_cpp/classes/time.hpp>
 #include <godot_cpp/variant/packed_float32_array.hpp>
 #include <godot_cpp/variant/packed_int32_array.hpp>
 #include <godot_cpp/variant/string.hpp>
@@ -21,7 +23,6 @@ class Utils : public Object
     ~Utils()
     {
     }
-
     static PackedFloat32Array vector_to_array_float(const std::vector<float> &vec)
     {
         PackedFloat32Array array;
@@ -67,11 +68,13 @@ class Utils : public Object
     //     return godot::String(("{" + glm::to_string(v) + "}").c_str());
     // }
 
-    static void print_projection(Projection projection) {
+    static void print_projection(Projection projection)
+    {
         String str = "Projection:\n";
         for (int i = 0; i < 4; i++)
         {
-            str += String::num(projection[i].x) + ", " + String::num(projection[i].y) + ", " + String::num(projection[i].z) + ", " + String::num(projection[i].w) + "\n";
+            str += String::num(projection[i].x) + ", " + String::num(projection[i].y) + ", " +
+                   String::num(projection[i].z) + ", " + String::num(projection[i].w) + "\n";
         }
         UtilityFunctions::print(str);
     }
@@ -96,28 +99,48 @@ class Utils : public Object
             target[i * 4 + 2] = t.columns[2][i];
             target[i * 4 + 3] = t.columns[3][i];
         }
-        
     }
 
-    static inline unsigned int compress_color16(Color rgb) {
-        
+    static inline unsigned int compress_color16(Color rgb)
+    {
+
         // H: 7 bits, S: 4 bits, V: 5 bits
         unsigned int h = unsigned int(rgb.get_h() * 127.0);
         unsigned int s = unsigned int(rgb.get_s() * 15.0);
         unsigned int v = unsigned int(rgb.get_v() * 31.0);
-        
+
         // Pack into a single unsigned int
         return (h << 9) | (s << 5) | v;
     }
 
-    static inline Color decompress_color16(unsigned int packedColor) {
+    static inline Color decompress_color16(unsigned int packedColor)
+    {
         // Extract H, S, V components
         unsigned int h = (packedColor >> 9) & 0x7F; // 7 bits for hue
         unsigned int s = (packedColor >> 5) & 0x0F; // 4 bits for saturation
         unsigned int v = packedColor & 0x1F;        // 5 bits for value
-        
+
         // Convert back to RGB
         return Color::from_hsv(float(h) / 128.0, float(s) / 16.0, float(v) / 32.0);
+    }
+
+    static Ref<RandomNumberGenerator> rng;
+
+    static Color randomized_color(Color color)
+    {
+        Vector3 hsv = {color.get_h(), color.get_s(), color.get_v()};
+        // Math::randf
+        if (!rng.is_valid())
+        {
+            rng.instantiate();
+            rng->set_seed(Time::get_singleton()->get_unix_time_from_system());
+        }
+
+        hsv.x = Math::clamp(hsv.x + rng->randf() * 0.025f, 0.0f, 1.0f);
+        hsv.y = Math::clamp(hsv.y *(0.95f + rng->randf() * 0.1f), 0.0f, 1.0f);
+        hsv.z = Math::clamp(hsv.z *(0.95f + rng->randf() * 0.1f), 0.0f, 1.0f);
+
+        return Color::from_hsv(hsv.x, hsv.y, hsv.z);
     }
 };
 

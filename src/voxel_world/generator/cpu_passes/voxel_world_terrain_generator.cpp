@@ -119,8 +119,10 @@ bool VoxelWorldTerrainGenerator::generate(std::vector<Voxel> &voxel_data, const 
             int h = heightmap[z * volume_size.x + x];
             for (int y = 0; y <= h && y < volume_size.y; ++y)
             {
+                auto color = h - y < 1 ? grass_color : ground_color;
+                color = Utils::randomized_color(color);
                 voxel_data[properties.pos_to_voxel_index(Vector3i(x, y, z))] =
-                    Voxel::create_voxel(Voxel::VOXEL_TYPE_SOLID, h - y < 1 ? grass_color : ground_color);
+                    Voxel::create_voxel(Voxel::VOXEL_TYPE_SOLID, color);
             }
         }
     }
