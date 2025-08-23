@@ -40,6 +40,12 @@ public:
     void set_plot_center(Vector3i p_center) { plot_center = p_center; }
     Vector3i get_plot_center() const { return plot_center; }
 
+    void set_plot_buffer(int p_plot_noise_factor) { plot_buffer = p_plot_noise_factor; }
+    int get_plot_buffer() const { return plot_buffer; }
+
+    void set_plot_noise_factor(int p_buffer) { plot_noise_factor = p_buffer; }
+    int get_plot_noise_factor() const { return plot_noise_factor; }
+
     void set_ground_color(Color p_color) { ground_color = p_color; }
     Color get_ground_color() const { return ground_color; }
 
@@ -65,6 +71,7 @@ private:
     // Flat plot
     Vector3i flat_plot_size = {16, 0, 16};
     int plot_buffer = 64;
+    float plot_noise_factor = 0.05f;
     Vector3i plot_center = {32, 0, 32};
 
     // Appearance

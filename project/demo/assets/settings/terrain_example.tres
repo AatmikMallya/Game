@@ -4,9 +4,9 @@
 
 [resource]
 noise_frequency = 0.01
-base_height = 64
-height_variation = 64
-flat_plot_size = Vector3i(64, 16, 64)
+base_height = 128
+height_variation = 96
+flat_plot_size = Vector3i(128, 32, 128)
 plot_center = Vector3i(256, 0, 256)
 ground_color = Color(0.5848, 0.657787, 0.68, 1)
 grass_color = Color(0.213606, 0.703123, 0.214448, 1)

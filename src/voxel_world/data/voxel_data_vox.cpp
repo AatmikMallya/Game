@@ -183,7 +183,7 @@ Error VoxelDataVox::load()
     voxel_indices.assign(voxels.size(), 0);
 
     auto index3_local = [&](int x, int y, int z) -> size_t {
-        return (((size_t)(size.z - z)) * size.y + (size_t)y) * size.x + (size_t)x;
+        return (((size_t)(size.z - z - 1)) * size.y + (size_t)y) * size.x + (size_t)x;
     };
 
     std::unordered_map<int, std::pair<int, Color>> palette_counts;

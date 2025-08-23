@@ -282,10 +282,6 @@ static bool is_all_air_face(const FaceSig &sig)
 
 } // namespace
 
-// ---------------------------------------------------------------
-// VoxelWorldWFCTileGenerator::prepare_voxel_tiles
-// ---------------------------------------------------------------
-
 bool VoxelWorldWFCTileGenerator::prepare_voxel_tiles(const TypedArray<WaveFunctionCollapseTile> &tiles)
 {
     const Vector3i init_size = Vector3i(-1, -1, -1);
@@ -302,7 +298,6 @@ bool VoxelWorldWFCTileGenerator::prepare_voxel_tiles(const TypedArray<WaveFuncti
         return false;
     }
 
-    // Validate tiles and capture size
     for (int i = 0; i < tiles.size(); ++i)
     {
         const Ref<WaveFunctionCollapseTile> tile = tiles[i];
@@ -316,7 +311,15 @@ bool VoxelWorldWFCTileGenerator::prepare_voxel_tiles(const TypedArray<WaveFuncti
             ERR_PRINT("Tile has no voxel data.");
             return false;
         }
-        tile->get_voxel_tile()->load();
+
+        Error success = tile->get_voxel_tile()->load();
+
+        if (success != OK)
+        {
+            ERR_PRINT("Failed to load voxel data for tile.");
+            return false;
+        }
+
         Vector3i sz = tile->get_voxel_tile()->get_size();
         if (g_model.tile_size != sz && g_model.tile_size != init_size)
         {
@@ -338,7 +341,7 @@ bool VoxelWorldWFCTileGenerator::prepare_voxel_tiles(const TypedArray<WaveFuncti
         const int flip_count = can_flip ? 2 : 1;
 
         const float base_weight = tile->get_weight();
-        const float orient_norm = float(rot_count * flip_count);
+        const float orient_norm = Math::max(1.0f, float(rot_count * flip_count));
 
         for (int r = 0; r < rot_count; ++r)
         {
@@ -721,33 +724,58 @@ bool VoxelWorldWFCTileGenerator::generate(std::vector<Voxel> &result_voxels, con
         auto *cv = static_cast<CollapsedCell *>(grid[i].get());
         Vector3i cell = pos_from_index(i, grid_size);
 
-        // Place oriented tile voxels
+        // Guard BEFORE indexing patterns
+        if (cv->is_debug || cv->pattern_id < 0 || size_t(cv->pattern_id) >= P)
+        {
+            if (show_contradictions)
+            {
+                // write magenta voxel(s)
+            }
+            continue;
+        }
+
         const Pattern &pat = g_model.patterns[size_t(cv->pattern_id)];
+        if (pat.tile_idx < 0 || pat.tile_idx >= voxel_tiles.size())
+            continue;
+
         const Ref<WaveFunctionCollapseTile> tile = voxel_tiles[pat.tile_idx];
+        if (tile.is_null() || tile->get_voxel_tile().is_null())
+            continue;
+
         const Ref<VoxelData> vox = tile->get_voxel_tile();
 
-        for (int lx = 0; lx < g_model.tile_size.x; ++lx)
-            for (int ly = 0; ly < g_model.tile_size.y; ++ly)
-                for (int lz = 0; lz < g_model.tile_size.z; ++lz)
+        Vector3i scaled_tile_size = {int(std::round(g_model.tile_size.x * voxel_scale)),
+                                     int(std::round(g_model.tile_size.y * voxel_scale)),
+                                     int(std::round(g_model.tile_size.z * voxel_scale))};
+
+        for (int lx = 0; lx < scaled_tile_size.x; ++lx)
+            for (int ly = 0; ly < scaled_tile_size.y; ++ly)
+                for (int lz = 0; lz < scaled_tile_size.z; ++lz)
                 {
-                    Vector3i world = {cell.x * g_model.tile_size.x + lx, cell.y * g_model.tile_size.y + ly,
-                                      cell.z * g_model.tile_size.z + lz};
+                    int src_lx = std::min(int(g_model.tile_size.x - 1), int(std::floor(lx / voxel_scale)));
+                    int src_ly = std::min(int(g_model.tile_size.y - 1), int(std::floor(ly / voxel_scale)));
+                    int src_lz = std::min(int(g_model.tile_size.z - 1), int(std::floor(lz / voxel_scale)));
+
+                    Vector3i world = {cell.x * scaled_tile_size.x + lx, cell.y * scaled_tile_size.y + ly,
+                                      cell.z * scaled_tile_size.z + lz};
+
                     int out_idx = properties.pos_to_voxel_index(world + bounds_min);
                     if (out_idx < 0 || out_idx >= static_cast<int>(result_voxels.size()))
                         continue;
 
-                    if(!only_replace_air || !result_voxels[out_idx].is_air()) 
+                    if (only_replace_air && !result_voxels[out_idx].is_air())
                         continue;
 
-                    if (cv->is_debug || cv->pattern_id < 0 || size_t(cv->pattern_id) >= P){
-                        if(show_contradictions)
-                            result_voxels[out_idx] = Voxel::create_voxel(Voxel::VOXEL_TYPE_SOLID, Color(1.0f, 0.0f, 1.0f));
-                    }
-                    else {
-                        Vector3i src = oriented_to_original({lx, ly, lz}, g_model.tile_size, pat.rot, pat.flip);
-                        result_voxels[out_idx] = vox->get_voxel_at(src);
-                    }
-                        
+                    Vector3i src = oriented_to_original({src_lx, src_ly, src_lz}, g_model.tile_size, pat.rot, pat.flip);
+                    Voxel v = vox->get_voxel_at(src);
+                    if (do_not_place_air && v.is_air())
+                        continue;
+
+                    Color c = v.get_color();
+                    int type = v.get_type();
+                    if (add_color_noise)
+                        c = Utils::randomized_color(c);
+                    result_voxels[out_idx] = Voxel::create_voxel(type, c);
                 }
     }
 
