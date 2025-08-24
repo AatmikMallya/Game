@@ -430,9 +430,10 @@ bool VoxelWorldWFCTileGenerator::generate(std::vector<Voxel> &result_voxels, con
     if (!prepare_voxel_tiles(voxel_tiles))
         return false;
 
-    Vector3i grid_size =
-        target_grid_size.min(Vector3i(properties.grid_size.x, properties.grid_size.y, properties.grid_size.z));
-    grid_size = grid_size / g_model.tile_size;
+    Vector3i bounds_size = bounds_max - bounds_min;
+
+    Vector3i grid_size = target_grid_size.min(bounds_size);
+    grid_size = (Vector3(grid_size) / (Vector3(g_model.tile_size) * voxel_scale)).floor();
     if (grid_size.x <= 0 || grid_size.y <= 0 || grid_size.z <= 0)
     {
         ERR_PRINT("Grid size too small for tile size.");

@@ -32,7 +32,7 @@ adjustment_saturation = 1.1
 
 [node name="VoxelWorld" type="VoxelWorld" parent="." node_paths=PackedStringArray("voxel_world_collider", "player_node", "sun_light")]
 generator = SubResource("VoxelWorldCPUGenerator_u10mr")
-brick_map_size = Vector3i(64, 64, 64)
+brick_map_size = Vector3i(96, 32, 96)
 scale = 0.25
 voxel_world_collider = NodePath("VoxelWorldCollider")
 player_node = NodePath("../Player")

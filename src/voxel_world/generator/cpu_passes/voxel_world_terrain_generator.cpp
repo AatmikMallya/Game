@@ -141,9 +141,11 @@ bool VoxelWorldTerrainGenerator::generate(std::vector<Voxel> &voxel_data, const 
 
     if (structure_pass.is_valid())
     {
-        Vector3i bounds_min = {plot_min.x, plot_min_y, plot_min.z};
-        Vector3i bounds_max = {plot_max.x, plot_min_y + flat_plot_size.y, plot_max.z};
-        bool success = structure_pass->generate(voxel_data, bounds_min, bounds_max, properties);
+        Vector3i structure_bounds_min = {plot_min.x, plot_min_y, plot_min.z};
+        structure_bounds_min = structure_bounds_min.max(bounds_min);
+        Vector3i structure_bounds_max = {plot_max.x, plot_min_y + flat_plot_size.y, plot_max.z};
+        structure_bounds_max = structure_bounds_max.min(bounds_max);
+        bool success = structure_pass->generate(voxel_data, structure_bounds_min, structure_bounds_max, properties);
         return success;
     }
 
