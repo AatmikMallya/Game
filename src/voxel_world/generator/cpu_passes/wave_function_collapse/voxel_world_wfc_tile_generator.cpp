@@ -557,12 +557,13 @@ bool VoxelWorldWFCTileGenerator::generate(std::vector<Voxel> &result_voxels, con
 
     auto init_superposition_from_priors = [&](int idx) -> SuperpositionCell * {
         auto sp = std::make_unique<SuperpositionCell>();
-        sp->domain_bits = full; // already tail-masked
+        sp->domain_bits = full;
         sp->entropy = priors_entropy;
         sp->version = 0;
 
         Vector3i pos = pos_from_index(idx, grid_size);
-        apply_boundary_constraints(*sp, pos); // NEW
+        if(need_air_connection_edge)
+            apply_boundary_constraints(*sp, pos);
 
         auto *raw = sp.get();
         grid[idx] = std::move(sp);
@@ -725,12 +726,31 @@ bool VoxelWorldWFCTileGenerator::generate(std::vector<Voxel> &result_voxels, con
         auto *cv = static_cast<CollapsedCell *>(grid[i].get());
         Vector3i cell = pos_from_index(i, grid_size);
 
-        // Guard BEFORE indexing patterns
+        Vector3i scaled_tile_size = {int(std::round(g_model.tile_size.x * voxel_scale)),
+                                     int(std::round(g_model.tile_size.y * voxel_scale)),
+                                     int(std::round(g_model.tile_size.z * voxel_scale))};
+
         if (cv->is_debug || cv->pattern_id < 0 || size_t(cv->pattern_id) >= P)
         {
             if (show_contradictions)
             {
-                // write magenta voxel(s)
+                for (int lx = 0; lx < scaled_tile_size.x; ++lx)
+                    for (int ly = 0; ly < scaled_tile_size.y; ++ly)
+                        for (int lz = 0; lz < scaled_tile_size.z; ++lz)
+                        {
+                            Vector3i world = {cell.x * scaled_tile_size.x + lx, cell.y * scaled_tile_size.y + ly,
+                                              cell.z * scaled_tile_size.z + lz};
+
+                            int out_idx = properties.pos_to_voxel_index(world + bounds_min);
+                            if (out_idx < 0 || out_idx >= static_cast<int>(result_voxels.size()))
+                                continue;
+
+                            if (only_replace_air && !result_voxels[out_idx].is_air())
+                                continue;
+
+                            result_voxels[out_idx] =
+                                Voxel::create_voxel(Voxel::VOXEL_TYPE_SOLID, Color(1.0f, 0.0f, 1.0f));
+                        }
             }
             continue;
         }
@@ -744,10 +764,6 @@ bool VoxelWorldWFCTileGenerator::generate(std::vector<Voxel> &result_voxels, con
             continue;
 
         const Ref<VoxelData> vox = tile->get_voxel_tile();
-
-        Vector3i scaled_tile_size = {int(std::round(g_model.tile_size.x * voxel_scale)),
-                                     int(std::round(g_model.tile_size.y * voxel_scale)),
-                                     int(std::round(g_model.tile_size.z * voxel_scale))};
 
         for (int lx = 0; lx < scaled_tile_size.x; ++lx)
             for (int ly = 0; ly < scaled_tile_size.y; ++ly)
