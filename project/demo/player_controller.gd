@@ -5,7 +5,7 @@ const MAX_MOVE_SPEED = 512;
 
 @export var camera : Node3D
 
-@export var speed = 5.0
+@export var speed = 5.00
 @export var jump_velocity = 4.5
 @export var fly_speed : float = 8.0
 @export var look_sensitivity : float = 0.1
@@ -17,8 +17,8 @@ func set_mouse(value: bool) -> void:
 	input_active = value;
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED if input_active else Input.MOUSE_MODE_VISIBLE;
 
-func _ready() -> void:
-	set_mouse(true);
+func _ready() -> void: 
+	set_mouse(true); 
 
 func _input(event) -> void:
 	if event.is_action_pressed("change_player_mode"):
@@ -35,8 +35,8 @@ func _input(event) -> void:
 		camera.rotation.x += -event.relative.y * 0.025 * look_sensitivity;
 		camera.rotation.x = clamp(camera.rotation.x, -PI/2.2, PI/2.2)
 
-func _process_flying(delta: float) -> void:
-	var wish_dir_raw = Input.get_vector("move_left", "move_right", "move_forward", "move_backward");		
+func _process_flying(_delta: float) -> void:
+	var wish_dir_raw = Input.get_vector("move_left", "move_right", "move_forward", "move_backward");
 	var direction := (camera.global_basis * Vector3(wish_dir_raw.x, 0, wish_dir_raw.y)).normalized();
 	if Input.is_action_pressed("move_up"):
 		direction += Vector3.UP;

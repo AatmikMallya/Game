@@ -1,0 +1,114 @@
+#ifndef VOXEL_WORLD_WFC_ADJACENCY_GENERATOR_H
+#define VOXEL_WORLD_WFC_ADJACENCY_GENERATOR_H
+
+#include "voxel_world/generator/voxel_world_generator.h"
+#include <godot_cpp/classes/node3d.hpp>
+#include <godot_cpp/classes/rendering_device.hpp>
+#include <godot_cpp/core/class_db.hpp>
+#include <godot_cpp/variant/rid.hpp>
+
+#include "voxel_world/data/voxel_data_vox.h"
+#include "wave_function_collapse_generator.h"
+
+using namespace godot;
+
+class VoxelWorldWFCAdjacencyGenerator : public WaveFunctionCollapseGenerator {
+    GDCLASS(VoxelWorldWFCAdjacencyGenerator, WaveFunctionCollapseGenerator)
+
+public:
+    enum NeighborhoodType {
+        NEIGHBORHOOD_MOORE = 0,
+        NEIGHBORHOOD_VON_NEUMANN = 1
+    };
+
+    VoxelWorldWFCAdjacencyGenerator() = default;
+    ~VoxelWorldWFCAdjacencyGenerator() override = default;
+
+    // Existing
+    void set_voxel_data(const Ref<VoxelData>& data) { voxel_data = data; }
+    Ref<VoxelData> get_voxel_data() const { return voxel_data; }
+
+    void set_seed_position_normalized(const Vector3 &pos) { seed_position_normalized = pos; }
+    Vector3 get_seed_position_normalized() const { return seed_position_normalized; }
+
+    void set_enable_superposition_propagation(bool enable) { enable_superposition_propagation = enable; }
+    bool get_enable_superposition_propagation() const { return enable_superposition_propagation; }
+
+    void set_show_contradictions(bool show) { show_contradictions = show; }
+    bool get_show_contradictions() const { return show_contradictions; }
+
+    void set_only_replace_air(bool only_air) { only_replace_air = only_air; }
+    bool get_only_replace_air() const { return only_replace_air; }
+
+    void set_initial_state(const Ref<VoxelWorldGeneratorCPUPass>& p_initial_state) { initial_state = p_initial_state; }
+    Ref<VoxelWorldGeneratorCPUPass> get_initial_state() const { return initial_state; }
+
+    void set_neighborhood_type(NeighborhoodType type) { neighborhood_type = type; }
+    NeighborhoodType get_neighborhood_type() const { return neighborhood_type; }
+
+    void set_neighborhood_radius(int r) { neighborhood_radius = r; }
+    int get_neighborhood_radius() const { return neighborhood_radius; }
+
+    void set_use_exhaustive_offsets(bool use) { use_exhaustive_offsets = use; }
+    bool get_use_exhaustive_offsets() const { return use_exhaustive_offsets; }
+
+    bool generate(std::vector<Voxel> &result_voxels, const Vector3i bounds_min, const Vector3i bounds_max, const VoxelWorldProperties &properties) override;
+
+    static void _bind_methods() {
+        // Existing bindings...
+        ClassDB::bind_method(D_METHOD("set_voxel_data", "path"), &VoxelWorldWFCAdjacencyGenerator::set_voxel_data);
+        ClassDB::bind_method(D_METHOD("get_voxel_data"), &VoxelWorldWFCAdjacencyGenerator::get_voxel_data);
+        ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "voxel_data", PROPERTY_HINT_RESOURCE_TYPE, "VoxelDataVox"), "set_voxel_data", "get_voxel_data");
+
+        ClassDB::bind_method(D_METHOD("set_seed_position_normalized", "pos"), &VoxelWorldWFCAdjacencyGenerator::set_seed_position_normalized);
+        ClassDB::bind_method(D_METHOD("get_seed_position_normalized"), &VoxelWorldWFCAdjacencyGenerator::get_seed_position_normalized);
+        ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "seed_position_normalized"), "set_seed_position_normalized", "get_seed_position_normalized");
+
+        ClassDB::bind_method(D_METHOD("set_enable_superposition_propagation", "enable"), &VoxelWorldWFCAdjacencyGenerator::set_enable_superposition_propagation);
+        ClassDB::bind_method(D_METHOD("get_enable_superposition_propagation"), &VoxelWorldWFCAdjacencyGenerator::get_enable_superposition_propagation);
+        ADD_PROPERTY(PropertyInfo(Variant::BOOL, "enable_superposition_propagation"), "set_enable_superposition_propagation", "get_enable_superposition_propagation");
+
+        ClassDB::bind_method(D_METHOD("set_show_contradictions", "show"), &VoxelWorldWFCAdjacencyGenerator::set_show_contradictions);
+        ClassDB::bind_method(D_METHOD("get_show_contradictions"), &VoxelWorldWFCAdjacencyGenerator::get_show_contradictions);
+        ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_contradictions"), "set_show_contradictions", "get_show_contradictions");
+
+        ClassDB::bind_method(D_METHOD("set_only_replace_air", "only_air"), &VoxelWorldWFCAdjacencyGenerator::set_only_replace_air);
+        ClassDB::bind_method(D_METHOD("get_only_replace_air"), &VoxelWorldWFCAdjacencyGenerator::get_only_replace_air);
+        ADD_PROPERTY(PropertyInfo(Variant::BOOL, "only_replace_air"), "set_only_replace_air", "get_only_replace_air");
+
+        ClassDB::bind_method(D_METHOD("set_initial_state", "initial_state"), &VoxelWorldWFCAdjacencyGenerator::set_initial_state);
+        ClassDB::bind_method(D_METHOD("get_initial_state"), &VoxelWorldWFCAdjacencyGenerator::get_initial_state);
+        ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "initial_state", PROPERTY_HINT_RESOURCE_TYPE, "VoxelWorldGeneratorCPUPass"), "set_initial_state", "get_initial_state");
+
+        BIND_ENUM_CONSTANT(NEIGHBORHOOD_MOORE);
+        BIND_ENUM_CONSTANT(NEIGHBORHOOD_VON_NEUMANN);
+
+        ClassDB::bind_method(D_METHOD("set_neighborhood_type", "type"), &VoxelWorldWFCAdjacencyGenerator::set_neighborhood_type);
+        ClassDB::bind_method(D_METHOD("get_neighborhood_type"), &VoxelWorldWFCAdjacencyGenerator::get_neighborhood_type);
+        ADD_PROPERTY(PropertyInfo(Variant::INT, "neighborhood_type", PROPERTY_HINT_ENUM, "Moore,VonNeumann"), "set_neighborhood_type", "get_neighborhood_type");
+
+        ClassDB::bind_method(D_METHOD("set_neighborhood_radius", "radius"), &VoxelWorldWFCAdjacencyGenerator::set_neighborhood_radius);
+        ClassDB::bind_method(D_METHOD("get_neighborhood_radius"), &VoxelWorldWFCAdjacencyGenerator::get_neighborhood_radius);
+        ADD_PROPERTY(PropertyInfo(Variant::INT, "neighborhood_radius", PROPERTY_HINT_RANGE, "1,10,1"), "set_neighborhood_radius", "get_neighborhood_radius");
+
+        ClassDB::bind_method(D_METHOD("set_use_exhaustive_offsets", "use"), &VoxelWorldWFCAdjacencyGenerator::set_use_exhaustive_offsets);
+        ClassDB::bind_method(D_METHOD("get_use_exhaustive_offsets"), &VoxelWorldWFCAdjacencyGenerator::get_use_exhaustive_offsets);
+        ADD_PROPERTY(PropertyInfo(Variant::BOOL, "use_exhaustive_offsets"), "set_use_exhaustive_offsets", "get_use_exhaustive_offsets");
+    }
+
+private:
+    Ref<VoxelDataVox> voxel_data;
+    Vector3 seed_position_normalized = Vector3(0.5, 0.5, 0.5);
+    bool enable_superposition_propagation = true;
+    bool show_contradictions = true;
+    bool only_replace_air = true;
+    Ref<VoxelWorldGeneratorCPUPass> initial_state;
+
+    NeighborhoodType neighborhood_type = NEIGHBORHOOD_MOORE;
+    int neighborhood_radius = 1;
+    bool use_exhaustive_offsets = true;
+};
+
+VARIANT_ENUM_CAST(VoxelWorldWFCAdjacencyGenerator::NeighborhoodType);
+
+#endif // VOXEL_WORLD_WFC_ADJACENCY_GENERATOR_H

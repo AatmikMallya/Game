@@ -29,6 +29,14 @@ class VoxelWorldCollider : public Node3D
             std::memcpy(byte_array.ptrw(), this, sizeof(VoxelColliderParams));
             return byte_array;
         }
+
+          bool is_valid_pos(Vector3i grid_pos) const {
+            return grid_pos.x >= 0 && grid_pos.x < bounds_size.x &&
+                grid_pos.y >= 0 && grid_pos.y < bounds_size.y &&
+                grid_pos.z >= 0 && grid_pos.z < bounds_size.z;
+        }
+
+
     };
 
   protected:
@@ -53,7 +61,7 @@ class VoxelWorldCollider : public Node3D
     void setCollisionShape(CollisionShape3D *shape) { _collision_shape = shape; }
 
   private:
-    bool isVoxelAir(Vector3i pos);
+    bool is_voxel_air(Vector3i pos);
 
     int frames_since_last_update = 0;
     int _update_interval = 15;

@@ -22,7 +22,6 @@ void main() {
     float t;
     Voxel voxel;
     
-
     vec3 ray_origin = params.camera_origin.xyz;
     vec3 ray_dir = normalize(params.camera_direction.xyz);
 

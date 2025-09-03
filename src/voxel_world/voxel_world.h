@@ -11,6 +11,7 @@
 #include "voxel_world/cellular_automata/voxel_world_update_pass.h"
 #include "voxel_world/voxel_edit/voxel_edit_pass.h"
 #include "voxel_world/colliders/voxel_world_collider.h"
+#include "voxel_world/generator/voxel_world_generator.h"
 
 using namespace godot;
 
@@ -37,6 +38,7 @@ private:
     RenderingDevice* _rd;
     Node3D* player_node = nullptr;
 
+    Ref<VoxelWorldGenerator> generator;
     VoxelWorldUpdatePass* _update_pass = nullptr;
     VoxelEditPass* _edit_pass = nullptr;
     VoxelWorldCollider* _voxel_world_collider = nullptr;
@@ -84,7 +86,9 @@ public:
 
     VoxelWorldRIDs get_voxel_world_rids() const { return _voxel_world_rids; }
     VoxelWorldProperties get_voxel_properties() const { return _voxel_properties; }
-    
+
+    Ref<VoxelWorldGenerator> get_generator() const { return generator;}
+    void set_generator(const Ref<VoxelWorldGenerator> p_generator) { generator = p_generator; }    
 };
 
 #endif // VOXEL_WORLD_H
