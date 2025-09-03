@@ -105,9 +105,9 @@ class Utils : public Object
     {
 
         // H: 7 bits, S: 4 bits, V: 5 bits
-        unsigned int h = unsigned int(rgb.get_h() * 127.0);
-        unsigned int s = unsigned int(rgb.get_s() * 15.0);
-        unsigned int v = unsigned int(rgb.get_v() * 31.0);
+        unsigned int h = static_cast<unsigned int>(rgb.get_h() * 127.0);
+        unsigned int s = static_cast<unsigned int>(rgb.get_s() * 15.0);
+        unsigned int v = static_cast<unsigned int>(rgb.get_v() * 31.0);
 
         // Pack into a single unsigned int
         return (h << 9) | (s << 5) | v;

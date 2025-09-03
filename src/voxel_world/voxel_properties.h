@@ -156,18 +156,18 @@ struct VoxelWorldProperties // match the struct on the gpu
         Vector3i localPos = grid_pos % BRICK_SIZE;
 #ifdef VOXEL_USE_MORTON_ORDER
         unsigned int morton = 0u;
-        morton |= ((unsigned int(localPos.x) >> 0) & 1u) << 0;
-        morton |= ((unsigned int(localPos.y) >> 0) & 1u) << 1;
-        morton |= ((unsigned int(localPos.z) >> 0) & 1u) << 2;
-        morton |= ((unsigned int(localPos.x) >> 1) & 1u) << 3;
-        morton |= ((unsigned int(localPos.y) >> 1) & 1u) << 4;
-        morton |= ((unsigned int(localPos.z) >> 1) & 1u) << 5;
-        morton |= ((unsigned int(localPos.x) >> 2) & 1u) << 6;
-        morton |= ((unsigned int(localPos.y) >> 2) & 1u) << 7;
-        morton |= ((unsigned int(localPos.z) >> 2) & 1u) << 8;
+        morton |= ((static_cast<unsigned int>(localPos.x) >> 0) & 1u) << 0;
+        morton |= ((static_cast<unsigned int>(localPos.y) >> 0) & 1u) << 1;
+        morton |= ((static_cast<unsigned int>(localPos.z) >> 0) & 1u) << 2;
+        morton |= ((static_cast<unsigned int>(localPos.x) >> 1) & 1u) << 3;
+        morton |= ((static_cast<unsigned int>(localPos.y) >> 1) & 1u) << 4;
+        morton |= ((static_cast<unsigned int>(localPos.z) >> 1) & 1u) << 5;
+        morton |= ((static_cast<unsigned int>(localPos.x) >> 2) & 1u) << 6;
+        morton |= ((static_cast<unsigned int>(localPos.y) >> 2) & 1u) << 7;
+        morton |= ((static_cast<unsigned int>(localPos.z) >> 2) & 1u) << 8;
         return morton;
 #endif
-        return unsigned int(localPos.x + (localPos.y * BRICK_SIZE) + (localPos.z * BRICK_SIZE * BRICK_SIZE));
+        return static_cast<unsigned int>(localPos.x + (localPos.y * BRICK_SIZE) + (localPos.z * BRICK_SIZE * BRICK_SIZE));
     }
 
     unsigned int pos_to_voxel_index(Vector3i grid_pos) const
