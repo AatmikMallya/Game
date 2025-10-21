@@ -42,13 +42,13 @@ void main() {
     float v0density = terrainDensity(pos);
     float v1density = terrainDensity(pos + ivec3(0,2,0));
 
-    if (v0density > 0.5) { //  
+    if (v0density > 0.5) { //
         if(v1density > 0.5)
             setBothVoxelBuffers(voxel_index, createRockVoxel(pos));
         else
             setBothVoxelBuffers(voxel_index, createGrassVoxel(pos));
 
-        // atomicAdd(voxelBricks[brick_index].occupancy_count, 1);
+        atomicAdd(voxelBricks[brick_index].occupancy_count, 1);
     } 
     else if(pos.y > 200) {
         // Create a sky voxel at the top of the world

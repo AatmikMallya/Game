@@ -8,6 +8,7 @@
 #include <godot_cpp/variant/packed_int32_array.hpp>
 #include <godot_cpp/variant/string.hpp>
 #include <vector>
+#include <godot_cpp/variant/transform3d.hpp>
 
 namespace godot
 {
@@ -99,6 +100,25 @@ class Utils : public Object
             target[i * 4 + 2] = t.columns[2][i];
             target[i * 4 + 3] = t.columns[3][i];
         }
+    }
+
+    static inline void transform_to_float(float *target, const Transform3D &t)
+    {
+        // Pack as column-major 4x4 (matches GLSL mat4 default)
+        const Basis &b = t.get_basis();
+        const Vector3 &x = b.get_column(0);
+        const Vector3 &y = b.get_column(1);
+        const Vector3 &z = b.get_column(2);
+        const Vector3 &o = t.get_origin();
+
+        // Column 0 (X axis)
+        target[0] = x.x; target[1] = x.y; target[2] = x.z; target[3] = 0.0f;
+        // Column 1 (Y axis)
+        target[4] = y.x; target[5] = y.y; target[6] = y.z; target[7] = 0.0f;
+        // Column 2 (Z axis)
+        target[8] = z.x; target[9] = z.y; target[10] = z.z; target[11] = 0.0f;
+        // Column 3 (Origin)
+        target[12] = o.x; target[13] = o.y; target[14] = o.z; target[15] = 1.0f;
     }
 
     static inline unsigned int compress_color16(Color rgb)

@@ -1,0 +1,75 @@
+[gd_scene load_steps=6 format=3 uid="uid://31rw0rdj6r12"]
+
+[ext_resource type="PackedScene" path="res://game/player/player.tscn" id="1_player"]
+[ext_resource type="PackedScene" path="res://game/ui/hud.tscn" id="2_hud"]
+
+[sub_resource type="VoxelWorldShaderGenerator" id="VoxelWorldShaderGenerator_main"]
+
+[sub_resource type="ConcavePolygonShape3D" id="ConcavePolygonShape3D_collider"]
+
+[sub_resource type="Environment" id="Environment_main"]
+background_mode = 3
+tonemap_mode = 3
+glow_enabled = true
+glow_normalized = true
+glow_blend_mode = 0
+adjustment_enabled = true
+adjustment_brightness = 0.95
+adjustment_contrast = 1.05
+adjustment_saturation = 1.1
+
+[node name="Main" type="Node3D"]
+
+[node name="VoxelWorld" type="VoxelWorld" parent="." node_paths=PackedStringArray("voxel_world_collider", "player_node", "sun_light") groups=["voxel_world"]]
+generator = SubResource("VoxelWorldShaderGenerator_main")
+brick_map_size = Vector3i(48, 48, 48)
+scale = 0.25
+voxel_world_collider = NodePath("VoxelWorldCollider")
+player_node = NodePath("../Player")
+sun_light = NodePath("Sun")
+ground_color = Color(0.6336, 0.88928, 0.96, 1)
+sky_color = Color(0.2881, 0.561795, 0.67, 1)
+
+[node name="VoxelWorldCollider" type="VoxelWorldCollider" parent="VoxelWorld" node_paths=PackedStringArray("collision_shape")]
+collider_size = Vector3i(10, 10, 10)
+collision_shape = NodePath("StaticBody3D/CollisionShape3D")
+update_interval = 10
+
+[node name="StaticBody3D" type="StaticBody3D" parent="VoxelWorld/VoxelWorldCollider"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="VoxelWorld/VoxelWorldCollider/StaticBody3D"]
+shape = SubResource("ConcavePolygonShape3D_collider")
+
+[node name="Sun" type="DirectionalLight3D" parent="VoxelWorld"]
+transform = Transform3D(0.63628, 0.354164, -0.685359, 0.013708, 0.883062, 0.469055, 0.771337, -0.307845, 0.55702, 0, 0, 0)
+directional_shadow_mode = 0
+sky_mode = 2
+
+[node name="Player" parent="." instance=ExtResource("1_player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32, 66.6397, 32)
+
+[node name="Slime" type="VoxelEntity" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 36, 65.5, 36)
+brick_map_size = Vector3i(3, 3, 3)
+radius_voxels = 10
+color = Color(0.2, 0.9, 0.45, 1)
+health = 50.0
+
+[node name="VoxelCamera" parent="Player" node_paths=PackedStringArray("voxel_world", "output_texture")]
+voxel_world = NodePath("../../VoxelWorld")
+output_texture = NodePath("TextureRect")
+
+[node name="TextureRect" type="TextureRect" parent="Player/VoxelCamera"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="HUD" parent="CanvasLayer" node_paths=PackedStringArray("player") instance=ExtResource("2_hud")]
+player = NodePath("../../Player")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_main")

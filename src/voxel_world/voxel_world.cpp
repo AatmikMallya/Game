@@ -27,6 +27,22 @@ void VoxelWorld::edit_world(const Vector3 &camera_origin, const Vector3 &camera_
     _edit_pass->edit_using_raycast(camera_origin, camera_direction, radius, range, value);
 }
 
+void VoxelWorld::edit_sphere_at(const Vector3 &position, const float radius, const int value)
+{
+    if (_edit_pass == nullptr)
+        return;
+    // Convert world position (meters) to voxel grid coordinates before editing shader
+    Vector3i grid = get_voxel_world_position(position);
+    _edit_pass->edit_at(Vector3(grid.x, grid.y, grid.z), radius, value);
+}
+
+Vector4 VoxelWorld::raycast_voxels(const Vector3 &origin, const Vector3 &direction, float near, float far)
+{
+    if (_edit_pass == nullptr)
+        return Vector4(0, 0, 0, -1);
+    return _edit_pass->raycast_voxels(origin, direction, near, far);
+}
+
 void VoxelWorld::_bind_methods()
 {
     ClassDB::bind_method(D_METHOD("get_generator"), &VoxelWorld::get_generator);
@@ -72,6 +88,20 @@ void VoxelWorld::_bind_methods()
     // methods
     ClassDB::bind_method(D_METHOD("edit_world", "camera_origin", "camera_direction", "radius", "range", "value"),
                          &VoxelWorld::edit_world);
+    ClassDB::bind_method(D_METHOD("edit_sphere_at", "position", "radius", "value"), &VoxelWorld::edit_sphere_at);
+    ClassDB::bind_method(D_METHOD("raycast_voxels", "origin", "direction", "near", "far"), &VoxelWorld::raycast_voxels);
+
+    // Performance profiling methods
+    ClassDB::bind_method(D_METHOD("get_time_simulation_liquid"), &VoxelWorld::get_time_simulation_liquid);
+    ClassDB::bind_method(D_METHOD("get_time_simulation_freeze"), &VoxelWorld::get_time_simulation_freeze);
+    ClassDB::bind_method(D_METHOD("get_time_simulation_cleanup"), &VoxelWorld::get_time_simulation_cleanup);
+    ClassDB::bind_method(D_METHOD("get_time_collision"), &VoxelWorld::get_time_collision);
+    ClassDB::bind_method(D_METHOD("get_time_total_update"), &VoxelWorld::get_time_total_update);
+
+    // GPU timing methods
+    ClassDB::bind_method(D_METHOD("get_gpu_time_simulation_liquid"), &VoxelWorld::get_gpu_time_simulation_liquid);
+    ClassDB::bind_method(D_METHOD("get_gpu_time_simulation_freeze"), &VoxelWorld::get_gpu_time_simulation_freeze);
+    ClassDB::bind_method(D_METHOD("get_gpu_time_simulation_cleanup"), &VoxelWorld::get_gpu_time_simulation_cleanup);
 }
 
 void VoxelWorld::_notification(int p_what)
@@ -167,19 +197,67 @@ void VoxelWorld::init()
 
 void VoxelWorld::update(float delta)
 {
-    if(!_initialized) 
+    if(!_initialized)
         return;
+
+    uint64_t update_start = Time::get_singleton()->get_ticks_usec();
+
     _voxel_properties.frame++;
     PackedByteArray properties_data = _voxel_properties.to_packed_byte_array();
     _rd->buffer_update(_voxel_world_rids.properties, 0, properties_data.size(), properties_data);
 
     if (simulation_enabled)
     {
+        uint64_t sim_start = Time::get_singleton()->get_ticks_usec();
         _update_pass->update(delta);
+        uint64_t sim_end = Time::get_singleton()->get_ticks_usec();
+
+        // Get individual pass timings from update pass
+        _time_simulation_liquid_us = _update_pass->get_time_liquid_us();
+        _time_simulation_freeze_us = _update_pass->get_time_freeze_us();
+        _time_simulation_cleanup_us = _update_pass->get_time_cleanup_us();
+    }
+    else
+    {
+        _time_simulation_liquid_us = 0;
+        _time_simulation_freeze_us = 0;
+        _time_simulation_cleanup_us = 0;
     }
 
     if (_voxel_world_collider != nullptr && player_node != nullptr)
     {
+        uint64_t collision_start = Time::get_singleton()->get_ticks_usec();
         _voxel_world_collider->update(get_voxel_world_position(player_node->get_global_position()));
+        uint64_t collision_end = Time::get_singleton()->get_ticks_usec();
+        _time_collision_us = collision_end - collision_start;
     }
+    else
+    {
+        _time_collision_us = 0;
+    }
+
+    uint64_t update_end = Time::get_singleton()->get_ticks_usec();
+    _time_total_update_us = update_end - update_start;
+}
+
+// GPU timing implementations
+float VoxelWorld::get_gpu_time_simulation_liquid() const
+{
+    if (_update_pass == nullptr)
+        return 0.0f;
+    return _update_pass->get_gpu_time_liquid_ms();
+}
+
+float VoxelWorld::get_gpu_time_simulation_freeze() const
+{
+    if (_update_pass == nullptr)
+        return 0.0f;
+    return _update_pass->get_gpu_time_freeze_ms();
+}
+
+float VoxelWorld::get_gpu_time_simulation_cleanup() const
+{
+    if (_update_pass == nullptr)
+        return 0.0f;
+    return _update_pass->get_gpu_time_cleanup_ms();
 }

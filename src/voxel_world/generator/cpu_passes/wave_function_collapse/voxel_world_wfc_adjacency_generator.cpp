@@ -332,19 +332,11 @@ bool VoxelWorldWFCAdjacencyGenerator::generate(std::vector<Voxel> &result_voxels
     const bool use_alpha = false;
     const float alpha = 0.25;
 
-    Neighborhood &ngh = Moore(neighborhood_radius, use_exhaustive_offsets);
+    std::variant<Moore, VonNeumann> ngh_variant = (neighborhood_type == NEIGHBORHOOD_VON_NEUMANN)
+        ? std::variant<Moore, VonNeumann>(VonNeumann(neighborhood_radius, use_exhaustive_offsets))
+        : std::variant<Moore, VonNeumann>(Moore(neighborhood_radius, use_exhaustive_offsets));
 
-    switch (neighborhood_type)
-    {
-    // case NEIGHBORHOOD_MOORE:
-    //     ngh = Moore(neighborhood_radius, use_exhaustive_offsets);
-    //     break;    
-    case NEIGHBORHOOD_VON_NEUMANN:
-        ngh = VonNeumann(neighborhood_radius, use_exhaustive_offsets);
-        break;
-    default:
-        break;
-    }
+    auto& ngh = std::visit([](auto& n) -> Neighborhood& { return n; }, ngh_variant);
 
     const int K = ngh.get_K();
 

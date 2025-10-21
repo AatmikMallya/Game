@@ -2,7 +2,7 @@ extends Node3D
 
 @export var world : VoxelWorld
 @export var selected_material : int = 1
-@export var radius : int = 8
+@export var radius : int = 16
 
 var cooldown := 0.0
 

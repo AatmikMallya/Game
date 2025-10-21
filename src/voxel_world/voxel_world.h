@@ -6,6 +6,7 @@
 #include <godot_cpp/variant/vector3i.hpp>
 #include <godot_cpp/classes/rendering_device.hpp>
 #include <godot_cpp/classes/directional_light3d.hpp>
+#include <godot_cpp/classes/time.hpp>
 
 #include "voxel_world/voxel_properties.h"
 #include "voxel_world/cellular_automata/voxel_world_update_pass.h"
@@ -47,6 +48,13 @@ private:
     Color ground_color = Color(0.5, 0.3, 0.15, 1.0);
     Color sky_color = Color(1.0, 1.0, 1.0, 1.0);
 
+    // Performance profiling (microseconds)
+    uint64_t _time_simulation_liquid_us = 0;
+    uint64_t _time_simulation_freeze_us = 0;
+    uint64_t _time_simulation_cleanup_us = 0;
+    uint64_t _time_collision_us = 0;
+    uint64_t _time_total_update_us = 0;
+
     void init();
     void update(float delta);
 
@@ -83,12 +91,26 @@ public:
     VoxelWorldCollider* get_voxel_world_collider() const { return _voxel_world_collider; }
 
     void edit_world(const Vector3 &camera_origin, const Vector3 &camera_direction, const float radius, const float range, const int value);
+    void edit_sphere_at(const Vector3 &position, const float radius, const int value);
+    Vector4 raycast_voxels(const Vector3 &origin, const Vector3 &direction, float near, float far);
 
     VoxelWorldRIDs get_voxel_world_rids() const { return _voxel_world_rids; }
     VoxelWorldProperties get_voxel_properties() const { return _voxel_properties; }
 
     Ref<VoxelWorldGenerator> get_generator() const { return generator;}
-    void set_generator(const Ref<VoxelWorldGenerator> p_generator) { generator = p_generator; }    
+    void set_generator(const Ref<VoxelWorldGenerator> p_generator) { generator = p_generator; }
+
+    // Performance profiling getters (returns milliseconds)
+    float get_time_simulation_liquid() const { return _time_simulation_liquid_us / 1000.0f; }
+    float get_time_simulation_freeze() const { return _time_simulation_freeze_us / 1000.0f; }
+    float get_time_simulation_cleanup() const { return _time_simulation_cleanup_us / 1000.0f; }
+    float get_time_collision() const { return _time_collision_us / 1000.0f; }
+    float get_time_total_update() const { return _time_total_update_us / 1000.0f; }
+
+    // GPU timing getters (returns milliseconds)
+    float get_gpu_time_simulation_liquid() const;
+    float get_gpu_time_simulation_freeze() const;
+    float get_gpu_time_simulation_cleanup() const;
 };
 
 #endif // VOXEL_WORLD_H

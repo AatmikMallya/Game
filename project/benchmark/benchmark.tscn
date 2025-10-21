@@ -1,0 +1,72 @@
+[gd_scene load_steps=6 format=3 uid="uid://benchmark001"]
+
+[ext_resource type="Script" path="res://benchmark/benchmark_controller.gd" id="1_benchmark"]
+[ext_resource type="Script" path="res://benchmark/benchmark_panel.gd" id="2_benchmark"]
+
+[sub_resource type="VoxelWorldShaderGenerator" id="VoxelWorldShaderGenerator_benchmark"]
+shader_path = "uid://bgkyi6q4w4k64"
+
+[sub_resource type="ImageTexture" id="ImageTexture_benchmark"]
+
+[sub_resource type="Environment" id="Environment_benchmark"]
+background_mode = 3
+tonemap_mode = 3
+glow_enabled = true
+glow_normalized = true
+glow_blend_mode = 0
+adjustment_enabled = true
+adjustment_brightness = 0.95
+adjustment_contrast = 1.05
+adjustment_saturation = 1.1
+
+[node name="Benchmark" type="Node3D"]
+
+[node name="BenchmarkController" type="Node3D" parent="."]
+script = ExtResource("1_benchmark")
+warmup_duration = 3.0
+test_duration = 10.0
+output_directory = "user://benchmark_results/"
+enable_console_output = true
+enable_json_output = true
+
+[node name="VoxelWorld" type="VoxelWorld" parent="." node_paths=PackedStringArray("sun_light")]
+generator = SubResource("VoxelWorldShaderGenerator_benchmark")
+brick_map_size = Vector3i(64, 64, 64)
+scale = 0.25
+simulation_enabled = true
+sun_light = NodePath("Sun")
+ground_color = Color(0.6336, 0.88928, 0.96, 1)
+sky_color = Color(0.2881, 0.561795, 0.67, 1)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+
+[node name="Sun" type="DirectionalLight3D" parent="VoxelWorld"]
+transform = Transform3D(0.63628, 0.354164, -0.685359, 0.013708, 0.883062, 0.469055, 0.771337, -0.307845, 0.55702, 0, 0, 0)
+directional_shadow_mode = 0
+sky_mode = 2
+
+[node name="VoxelCamera" type="VoxelCamera" parent="." node_paths=PackedStringArray("voxel_world", "output_texture")]
+voxel_world = NodePath("../VoxelWorld")
+output_texture = NodePath("TextureRect")
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 64, 140, 64)
+
+[node name="TextureRect" type="TextureRect" parent="VoxelCamera"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = SubResource("ImageTexture_benchmark")
+
+[node name="BenchmarkPanel" type="Control" parent="VoxelCamera/TextureRect"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("2_benchmark")
+update_interval = 0.1
+show_detailed_stats = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_benchmark")

@@ -1,0 +1,39 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://game/player/player.gd" id="1_player"]
+[ext_resource type="Script" path="res://game/player/components/health_component.gd" id="2_health"]
+[ext_resource type="Script" path="res://game/player/components/mana_component.gd" id="3_mana"]
+[ext_resource type="Script" path="res://game/player/components/spell_caster.gd" id="4_spell"]
+[ext_resource type="Resource" path="res://game/resources/spells/excavate.tres" id="5_excavate"]
+[ext_resource type="Resource" path="res://game/resources/spells/fireball.tres" id="6_fireball"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_player"]
+radius = 0.4
+height = 1.8
+
+[node name="Player" type="CharacterBody3D" groups=["player"]]
+script = ExtResource("1_player")
+camera = NodePath("VoxelCamera")
+is_flying = true
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+shape = SubResource("CapsuleShape3D_player")
+
+[node name="VoxelCamera" type="VoxelCamera" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0)
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("2_health")
+max_health = 100
+
+[node name="ManaComponent" type="Node" parent="."]
+script = ExtResource("3_mana")
+max_mana = 100.0
+mana_regen_rate = 10.0
+
+[node name="SpellCaster" type="Node" parent="."]
+script = ExtResource("4_spell")
+spell_slots = Array[Resource("res://game/resources/spell_data.gd")]([ExtResource("6_fireball")])
+
+[editable path="VoxelCamera"]

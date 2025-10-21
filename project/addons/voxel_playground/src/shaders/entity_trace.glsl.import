@@ -1,0 +1,14 @@
+[remap]
+
+importer="glsl"
+type="RDShaderFile"
+uid="uid://dbywmi27kh08c"
+path="res://.godot/imported/entity_trace.glsl-0f174ae748313a5493913f8e16e9e0f7.res"
+
+[deps]
+
+source_file="res://addons/voxel_playground/src/shaders/entity_trace.glsl"
+dest_files=["res://.godot/imported/entity_trace.glsl-0f174ae748313a5493913f8e16e9e0f7.res"]
+
+[params]
+

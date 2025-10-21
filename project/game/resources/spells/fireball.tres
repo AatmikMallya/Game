@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="SpellData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/resources/spell_data.gd" id="1"]
+[ext_resource type="PackedScene" path="res://game/projectiles/fireball_projectile.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+spell_name = "Fireball"
+description = "Launches an explosive fireball that destroys voxels and creates lava."
+spell_type = 0
+mana_cost = 20.0
+cooldown = 1.0
+projectile_scene = ExtResource("2")
+projectile_speed = 15.0
+projectile_lifetime = 5.0
+damage = 50
+modifies_voxels = true
+voxel_radius = 4
+voxel_type = 0
+max_range = 75.0

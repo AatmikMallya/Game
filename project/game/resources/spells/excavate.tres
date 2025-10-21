@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="SpellData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/spell_data.gd" id="1_spell_data"]
+[ext_resource type="Script" path="res://game/spells/excavate/excavate_spell.gd" id="2_excavate"]
+
+[resource]
+script = ExtResource("1_spell_data")
+spell_name = "Excavate"
+description = "Remove voxels in front of you"
+spell_type = 1
+mana_cost = 10.0
+cooldown = 0.5
+cast_time = 0.0
+modifies_voxels = true
+voxel_radius = 3
+voxel_type = 0
+max_range = 50.0
+effect_script = ExtResource("2_excavate")

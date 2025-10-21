@@ -41,6 +41,9 @@ class VoxelEditPass
                             const float range, const int value);
     void edit_at(const Vector3 &position, const float radius, const int value);
 
+    // Perform voxel raycast and return hit position as Vector4(x,y,z,w), w>=0 if hit, <0 if no hit
+    Vector4 raycast_voxels(const Vector3 &origin, const Vector3 &direction, float near, float far);
+
   private:
     ComputeShader *ray_cast_shader = nullptr;
     ComputeShader *edit_shader = nullptr;

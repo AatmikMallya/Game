@@ -1,0 +1,27 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://game/ui/hud.gd" id="1_hud"]
+[ext_resource type="PackedScene" path="res://game/ui/health_bar.tscn" id="2_health"]
+[ext_resource type="PackedScene" path="res://game/ui/mana_bar.tscn" id="3_mana"]
+
+[node name="HUD" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_hud")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 220.0
+offset_bottom = 100.0
+
+[node name="HealthBar" parent="VBoxContainer" instance=ExtResource("2_health")]
+layout_mode = 2
+
+[node name="ManaBar" parent="VBoxContainer" instance=ExtResource("3_mana")]
+layout_mode = 2

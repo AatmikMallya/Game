@@ -61,4 +61,50 @@ void VoxelEditPass::edit_using_raycast(const Vector3 &camera_origin, const Vecto
 
 void VoxelEditPass::edit_at(const Vector3 &position, const float radius, const int value)
 {
+    if (edit_shader == nullptr || !edit_shader->check_ready())
+    {
+        UtilityFunctions::printerr("VoxelEditPass::edit_at() edit shader is null or not ready");
+        return;
+    }
+
+    _edit_params.camera_origin = Vector4(0,0,0,1);
+    _edit_params.camera_direction = Vector4(0,0,-1,0);
+    _edit_params.hit_position = Vector4(position.x, position.y, position.z, 1.0f);
+    _edit_params.near = 0.0f;
+    _edit_params.far = 0.0f;
+    _edit_params.radius = radius;
+    _edit_params.value = value;
+
+    // Update edit params and dispatch edit compute directly
+    edit_shader->update_storage_buffer_uniform(_edit_params_rid, _edit_params.to_packed_byte_array());
+
+    const Vector3 group_size = Vector3(8, 8, 8);
+    const Vector3i group_count = Vector3i(std::ceil(2.0f * radius / group_size.x),
+                                          std::ceil(2.0f * radius / group_size.y),
+                                          std::ceil(2.0f * radius / group_size.z));
+    edit_shader->compute(group_count, false);
+}
+
+Vector4 VoxelEditPass::raycast_voxels(const Vector3 &origin, const Vector3 &direction, float near, float far)
+{
+    if (ray_cast_shader == nullptr || !ray_cast_shader->check_ready())
+    {
+        UtilityFunctions::printerr("VoxelEditPass::raycast_voxels() shader is null or not ready");
+        return Vector4(0, 0, 0, -1);
+    }
+
+    _edit_params.camera_origin = Vector4(origin.x, origin.y, origin.z, 1.0f);
+    _edit_params.camera_direction = Vector4(direction.x, direction.y, direction.z, 0.0f).normalized();
+    _edit_params.hit_position = Vector4(0, 0, 0, -1);
+    _edit_params.near = near;
+    _edit_params.far = far;
+    _edit_params.radius = 0.0f;
+    _edit_params.value = 0;
+
+    ray_cast_shader->update_storage_buffer_uniform(_edit_params_rid, _edit_params.to_packed_byte_array());
+    ray_cast_shader->compute(Vector3i(1, 1, 1), false);
+
+    PackedByteArray arr = ray_cast_shader->get_storage_buffer_uniform(_edit_params_rid);
+    VoxelEditParams *params = reinterpret_cast<VoxelEditParams *>(arr.ptrw());
+    return params->hit_position;
 }

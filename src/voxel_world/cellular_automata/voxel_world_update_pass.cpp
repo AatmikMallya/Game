@@ -28,19 +28,36 @@ void VoxelWorldUpdatePass::update(float delta)
         return;
     }
 
-    { // Automata pass
+    { // Liquid automata pass
+        uint64_t start = Time::get_singleton()->get_ticks_usec();
         const Vector3 group_size = Vector3(8, 8, 8);
         const Vector3i group_count = Vector3i(std::ceil(_size.x / group_size.x), std::ceil(_size.y / group_size.y), std::ceil(_size.z / group_size.z));
-        automata_cs_1->compute(group_count, false);
-        automata_cs_2->compute(group_count, false);
+        automata_cs_1->compute(group_count, true);  // Enable sync for GPU timing
+        uint64_t end = Time::get_singleton()->get_ticks_usec();
+        _time_liquid_us = end - start;
+        _gpu_time_liquid_ms = automata_cs_1->get_last_gpu_time_ms();
     }
 
-    {
+    { // Freeze lava pass
+        uint64_t start = Time::get_singleton()->get_ticks_usec();
+        const Vector3 group_size = Vector3(8, 8, 8);
+        const Vector3i group_count = Vector3i(std::ceil(_size.x / group_size.x), std::ceil(_size.y / group_size.y), std::ceil(_size.z / group_size.z));
+        automata_cs_2->compute(group_count, true);  // Enable sync for GPU timing
+        uint64_t end = Time::get_singleton()->get_ticks_usec();
+        _time_freeze_us = end - start;
+        _gpu_time_freeze_ms = automata_cs_2->get_last_gpu_time_ms();
+    }
+
+    { // Cleanup pass
+        uint64_t start = Time::get_singleton()->get_ticks_usec();
         const Vector3 thread_span = Vector3(2, 4, 2);
         const Vector3 group_size = Vector3(4, 2, 4);
         const Vector3 brick_span = thread_span * group_size;
         const Vector3i group_count = Vector3i(std::ceil(_size.x / brick_span.x), std::ceil(_size.y / brick_span.y), std::ceil(_size.z / brick_span.z));
-        cleanup_shader->compute(group_count, false);
+        cleanup_shader->compute(group_count, true);  // Enable sync for GPU timing
+        uint64_t end = Time::get_singleton()->get_ticks_usec();
+        _time_cleanup_us = end - start;
+        _gpu_time_cleanup_ms = cleanup_shader->get_last_gpu_time_ms();
     }
 
 }
