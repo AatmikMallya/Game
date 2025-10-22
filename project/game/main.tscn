@@ -2,6 +2,7 @@
 
 [ext_resource type="PackedScene" path="res://game/player/player.tscn" id="1_player"]
 [ext_resource type="PackedScene" path="res://game/ui/hud.tscn" id="2_hud"]
+[ext_resource type="PackedScene" path="res://game/enemies/slime_sphere.tscn" id="3_slime"]
 
 [sub_resource type="VoxelWorldShaderGenerator" id="VoxelWorldShaderGenerator_main"]
 
@@ -48,14 +49,7 @@ sky_mode = 2
 [node name="Player" parent="." instance=ExtResource("1_player")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32, 66.6397, 32)
 
-[node name="Slime" type="VoxelEntity" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 36, 65.5, 36)
-brick_map_size = Vector3i(3, 3, 3)
-radius_voxels = 10
-color = Color(0.2, 0.9, 0.45, 1)
-health = 50.0
-
-[node name="VoxelCamera" parent="Player" node_paths=PackedStringArray("voxel_world", "output_texture")]
+[node name="VoxelCamera" parent="Player" node_paths=PackedStringArray("voxel_world", "output_texture") groups=["voxel_camera"]]
 voxel_world = NodePath("../../VoxelWorld")
 output_texture = NodePath("TextureRect")
 
@@ -73,3 +67,5 @@ player = NodePath("../../Player")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_main")
+[node name="Slime" parent="." instance=ExtResource("3_slime")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 36, 65.5, 36)

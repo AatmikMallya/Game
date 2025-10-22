@@ -1,8 +1,6 @@
 #include "voxel_camera.h"
 #include "utility/utils.h"
 #include <godot_cpp/classes/scene_tree.hpp>
-#include <godot_cpp/variant/utility_functions.hpp>
-#include "voxel_world/entities/voxel_entity.h"
 
 void VoxelCamera::_bind_methods()
 {
@@ -143,11 +141,7 @@ void VoxelCamera::init()
     projection_matrix = Projection::create_perspective(fov, static_cast<float>(resolution.width) / resolution.height, near, far, false);
 
     // setup compute shader
-    cs = new ComputeShader(
-        "res://addons/voxel_playground/src/shaders/voxel_renderer.glsl",
-        _rd,
-        {"#define TESTe", "#define ENABLE_ENTITIES 1", "#define DEBUG_ENTITY_RESULT_READ 1"}
-    );
+    cs = new ComputeShader("res://addons/voxel_playground/src/shaders/voxel_renderer.glsl", _rd, {"#define TESTe"});
 
     //--------- Voxel BUFFERS ---------    
     voxel_world->get_voxel_world_rids().add_voxel_buffers(cs);    
@@ -195,49 +189,15 @@ void VoxelCamera::init()
         projectile_spheres_rid = cs->create_storage_buffer_uniform(spheres, 5, 1);
     }
 
-    //--------- ENTITY BUFFERS (discover and upload once) ---------
-    discover_entities();
-    // TEMP: Skip entity trace pass wiring for stability on Metal during bring-up.
-
-    // Create persistent debug spheres for entities to visualize without entity traversal
-    _entity_debug_spheres.clear();
-    {
-        SceneTree *tree = get_tree();
-        if (tree) {
-            Array nodes = tree->get_nodes_in_group("voxel_entities");
-            for (int i = 0; i < nodes.size(); ++i) {
-                VoxelEntity *e = Object::cast_to<VoxelEntity>(nodes[i]);
-                if (!e) continue;
-                // Compute world-space center and approximate radius
-                Vector3i brick_map = e->get_brick_map_size();
-                Vector3 grid = Vector3(brick_map.x * 8, brick_map.y * 8, brick_map.z * 8);
-                float s = voxel_world ? voxel_world->get_scale() : 0.25f;
-                Vector3 half_extents = 0.5f * s * grid;
-                Vector3 center_local = half_extents; // entity local origin at (0,0,0)
-                Vector3 center_world = e->get_global_transform().xform(center_local);
-                float radius = half_extents.length();
-                int pid = register_projectile(center_world, radius);
-                _entity_debug_spheres.push_back(pid);
-            }
-        }
-    }
-
-    // Skip entity trace pass wiring for now.
-
     Ref<RDTextureView> output_texture_view = memnew(RDTextureView);
     { // output texture
         auto output_format = cs->create_texture_format(render_parameters.width, render_parameters.height, RenderingDevice::DATA_FORMAT_R32G32B32A32_SFLOAT);
         if (output_texture_rect == nullptr)
         {
             // Try to find a TextureRect child for convenience; fallback to headless rendering
-            List<Node*> stack;
-            get_tree()->get_nodes_in_group("voxel_camera_output");
-            // DFS search for TextureRect child
-            for (int i = 0; i < get_child_count(); ++i) stack.push_back(get_child(i));
-            while (!stack.is_empty() && output_texture_rect == nullptr) {
-                Node *n = stack.front()->get(); stack.pop_front();
-                if (auto tr = Object::cast_to<TextureRect>(n)) { output_texture_rect = tr; break; }
-                for (int j = 0; j < n->get_child_count(); ++j) stack.push_back(n->get_child(j));
+            for (int i = 0; i < get_child_count(); ++i) {
+                TextureRect *tr = Object::cast_to<TextureRect>(get_child(i));
+                if (tr) { output_texture_rect = tr; break; }
             }
             if (output_texture_rect == nullptr)
             {
@@ -251,7 +211,6 @@ void VoxelCamera::init()
             output_texture.instantiate();
             output_texture->set_texture_rd_rid(output_texture_rid);
             output_texture_rect->set_texture(output_texture);
-            UtilityFunctions::print("VoxelCamera: output TextureRect assigned.");
         }
     }
 
@@ -312,7 +271,6 @@ void VoxelCamera::render()
     // render
     uint64_t raymarching_start = Time::get_singleton()->get_ticks_usec();
     Vector2i Size = {render_parameters.width, render_parameters.height};
-    // Entity trace pass disabled for stability
     cs->compute({static_cast<int32_t>(std::ceil(Size.x / 32.0f)), static_cast<int32_t>(std::ceil(Size.y / 32.0f)), 1}, true);  // Enable sync for GPU timing
     uint64_t raymarching_end = Time::get_singleton()->get_ticks_usec();
     _time_raymarching_us = raymarching_end - raymarching_start;
@@ -328,209 +286,6 @@ void VoxelCamera::render()
 
     uint64_t render_end = Time::get_singleton()->get_ticks_usec();
     _time_total_render_us = render_end - render_start;
-}
-
-void VoxelCamera::discover_entities()
-{
-    // Find VoxelEntity nodes
-    _entities.clear();
-    _all_entity_bricks.clear();
-    _all_entity_voxels.clear();
-
-    SceneTree *tree = get_tree();
-    if (!tree) return;
-    Array nodes = tree->get_nodes_in_group("voxel_entities");
-    if (nodes.is_empty()) {
-        // No entities to setup; still create tiny buffers to satisfy bindings
-        PackedByteArray countbuf; countbuf.resize(sizeof(int));
-        *reinterpret_cast<int*>(countbuf.ptrw()) = 0;
-        entity_count_rid = cs->create_storage_buffer_uniform(countbuf, 6, 1);
-
-        PackedByteArray descs; descs.resize(sizeof(EntityDescriptorCPU) * MAX_ENTITIES);
-        descs.fill(0);
-        entity_descriptors_rid = cs->create_storage_buffer_uniform(descs, 9, 1);
-
-        PackedByteArray bricks; bricks.resize(sizeof(Brick)); bricks.fill(0);
-        entity_bricks_rid = cs->create_storage_buffer_uniform(bricks, 7, 1);
-        PackedByteArray vox; vox.resize(sizeof(Voxel)); vox.fill(0);
-        entity_voxels_rid = cs->create_storage_buffer_uniform(vox, 8, 1);
-        return;
-    }
-
-    // Build CPU entity volumes and descriptors
-    int count = 0;
-    for (int i = 0; i < nodes.size() && count < MAX_ENTITIES; ++i) {
-        VoxelEntity *e = Object::cast_to<VoxelEntity>(nodes[i]);
-        if (!e) continue;
-
-        // Setup sizes
-        Vector3i brick_map = e->get_brick_map_size();
-        Vector3i grid = brick_map * Vector3i(8,8,8);
-        Vector3i brick_grid = brick_map;
-        int brick_count = brick_grid.x * brick_grid.y * brick_grid.z;
-
-        // Generate voxels for a sphere slime (centered)
-        std::vector<Voxel> local_voxels;
-        local_voxels.resize(brick_count * VoxelWorldProperties::BRICK_VOLUME, Voxel::create_air_voxel());
-
-        auto mortonIndex = [](int lx, int ly, int lz) {
-            unsigned int morton = 0u;
-            morton |= ((static_cast<unsigned int>(lx) >> 0) & 1u) << 0;
-            morton |= ((static_cast<unsigned int>(ly) >> 0) & 1u) << 1;
-            morton |= ((static_cast<unsigned int>(lz) >> 0) & 1u) << 2;
-            morton |= ((static_cast<unsigned int>(lx) >> 1) & 1u) << 3;
-            morton |= ((static_cast<unsigned int>(ly) >> 1) & 1u) << 4;
-            morton |= ((static_cast<unsigned int>(lz) >> 1) & 1u) << 5;
-            morton |= ((static_cast<unsigned int>(lx) >> 2) & 1u) << 6;
-            morton |= ((static_cast<unsigned int>(ly) >> 2) & 1u) << 7;
-            morton |= ((static_cast<unsigned int>(lz) >> 2) & 1u) << 8;
-            return morton;
-        };
-
-        // Sphere parameters
-        int r = e->get_radius_voxels();
-        Vector3 center = Vector3(grid.x * 0.5f, grid.y * 0.5f, grid.z * 0.5f);
-        Color col = e->get_color();
-        Voxel solid = Voxel::create_solid_voxel(col);
-
-        auto write_local_voxel = [&](int gx, int gy, int gz, Voxel v){
-            // Compute brick index and index within brick (Morton)
-            Vector3i brick_pos = Vector3i(gx/8, gy/8, gz/8);
-            int brick_index = brick_pos.x + brick_pos.y * brick_grid.x + brick_pos.z * brick_grid.x * brick_grid.y;
-            int lx = gx % 8, ly = gy % 8, lz = gz % 8;
-            unsigned int in_brick = mortonIndex(lx, ly, lz);
-            size_t base = size_t(brick_index) * VoxelWorldProperties::BRICK_VOLUME;
-            local_voxels[base + in_brick] = v;
-        };
-
-        for (int z = 0; z < grid.z; ++z) {
-            for (int y = 0; y < grid.y; ++y) {
-                for (int x = 0; x < grid.x; ++x) {
-                    Vector3 p = Vector3(x + 0.5f, y + 0.5f, z + 0.5f);
-                    if ((p - center).length() <= float(r)) {
-                        write_local_voxel(x, y, z, solid);
-                    }
-                }
-            }
-        }
-
-        // Build bricks and occupancy
-        std::vector<Brick> local_bricks;
-        local_bricks.resize(brick_count);
-
-        // Compute offsets into aggregated arrays
-        uint32_t voxel_offset = static_cast<uint32_t>(_all_entity_voxels.size());
-        uint32_t brick_offset = static_cast<uint32_t>(_all_entity_bricks.size());
-
-        // Copy bricks + voxels into global arrays
-        for (int bz = 0; bz < brick_grid.z; ++bz) {
-            for (int by = 0; by < brick_grid.y; ++by) {
-                for (int bx = 0; bx < brick_grid.x; ++bx) {
-                    int bindex = bx + by * brick_grid.x + bz * brick_grid.x * brick_grid.y;
-                    // Occupancy: count non-air in this brick
-                    int count_non_air = 0;
-                    size_t base = size_t(bindex) * VoxelWorldProperties::BRICK_VOLUME;
-                    for (int i = 0; i < VoxelWorldProperties::BRICK_VOLUME; ++i) {
-                        if (!local_voxels[base + i].is_air()) count_non_air++;
-                    }
-                    Brick b;
-                    b.occupancy_count = count_non_air;
-                    // pointer is in bricks; base brick = voxel_offset / BRICK_VOLUME
-                    b.voxel_data_pointer = (voxel_offset / VoxelWorldProperties::BRICK_VOLUME) + bindex;
-                    local_bricks[bindex] = b;
-                }
-            }
-        }
-
-        // Append to global arrays
-        _all_entity_bricks.insert(_all_entity_bricks.end(), local_bricks.begin(), local_bricks.end());
-        _all_entity_voxels.insert(_all_entity_voxels.end(), local_voxels.begin(), local_voxels.end());
-
-        // Fill descriptor
-        EntityDescriptorCPU desc = {};
-        Transform3D xf = e->get_global_transform();
-        // local origin at (0,0,0); local bounds in meters [0, grid*scale]
-        Vector3 scale_v = Vector3(1,1,1); // handled by desc.scale
-        Basis b = xf.get_basis();
-
-        // local_to_world matrix (float[16])
-        // Build affine as column-major 4x4
-        Utils::transform_to_float(desc.local_to_world, xf);
-        Transform3D wtol_t = xf.affine_inverse();
-        Utils::transform_to_float(desc.world_to_local, wtol_t);
-
-        // AABB in world space: corners of local box [0, grid*scale]
-        float s = voxel_world ? voxel_world->get_scale() : 0.25f;
-        Vector3 local_min(0,0,0);
-        Vector3 local_max = Vector3(grid.x * s, grid.y * s, grid.z * s);
-        Vector3 corners[8] = {
-            Vector3(local_min.x, local_min.y, local_min.z),
-            Vector3(local_max.x, local_min.y, local_min.z),
-            Vector3(local_min.x, local_max.y, local_min.z),
-            Vector3(local_min.x, local_min.y, local_max.z),
-            Vector3(local_max.x, local_max.y, local_min.z),
-            Vector3(local_max.x, local_min.y, local_max.z),
-            Vector3(local_min.x, local_max.y, local_max.z),
-            Vector3(local_max.x, local_max.y, local_max.z)
-        };
-        Vector3 wmin = xf.xform(corners[0]);
-        Vector3 wmax = wmin;
-        for (int c = 1; c < 8; ++c) {
-            Vector3 w = xf.xform(corners[c]);
-            wmin = wmin.min(w);
-            wmax = wmax.max(w);
-        }
-        desc.aabb_min[0] = wmin.x; desc.aabb_min[1] = wmin.y; desc.aabb_min[2] = wmin.z; desc.aabb_min[3] = 0.0f;
-        desc.aabb_max[0] = wmax.x; desc.aabb_max[1] = wmax.y; desc.aabb_max[2] = wmax.z; desc.aabb_max[3] = 0.0f;
-        desc.grid_size[0] = (float)grid.x; desc.grid_size[1] = (float)grid.y; desc.grid_size[2] = (float)grid.z; desc.grid_size[3] = 0.0f;
-        desc.brick_grid_size[0] = (float)brick_grid.x; desc.brick_grid_size[1] = (float)brick_grid.y; desc.brick_grid_size[2] = (float)brick_grid.z; desc.brick_grid_size[3] = 0.0f;
-        desc.scale = s;
-        desc.brick_offset = brick_offset;
-        desc.voxel_offset = voxel_offset;
-        desc.brick_count = brick_count;
-        desc.enabled = 1;
-        desc.health = e->get_health();
-
-        _entities.push_back(desc);
-        count++;
-    }
-
-    // Create GPU buffers with aggregated data
-    PackedByteArray countbuf; countbuf.resize(sizeof(int));
-    // Enable entities for AABB debug: upload true count
-    int upload_count = count;
-    *reinterpret_cast<int*>(countbuf.ptrw()) = upload_count;
-    entity_count_rid = cs->create_storage_buffer_uniform(countbuf, 6, 1);
-
-    PackedByteArray descs; descs.resize(sizeof(EntityDescriptorCPU) * MAX_ENTITIES);
-    descs.fill(0);
-    if (count > 0) {
-        std::memcpy(descs.ptrw(), _entities.ptr(), sizeof(EntityDescriptorCPU) * _entities.size());
-    }
-    entity_descriptors_rid = cs->create_storage_buffer_uniform(descs, 9, 1);
-
-    // Bricks
-    PackedByteArray bricks;
-    bricks.resize(_all_entity_bricks.size() * sizeof(Brick));
-    if (!bricks.is_empty()) {
-        std::memcpy(bricks.ptrw(), _all_entity_bricks.data(), _all_entity_bricks.size() * sizeof(Brick));
-    }
-    entity_bricks_rid = cs->create_storage_buffer_uniform(bricks, 7, 1);
-
-    // Voxels
-    PackedByteArray vox;
-    vox.resize(_all_entity_voxels.size() * sizeof(Voxel));
-    if (!vox.is_empty()) {
-        std::memcpy(vox.ptrw(), _all_entity_voxels.data(), _all_entity_voxels.size() * sizeof(Voxel));
-    }
-    entity_voxels_rid = cs->create_storage_buffer_uniform(vox, 8, 1);
-
-    UtilityFunctions::print("VoxelCamera: discovered ", count, " voxel entities. desc size=", (int)sizeof(EntityDescriptorCPU));
-    if (count > 0) {
-        const EntityDescriptorCPU &d = _entities[0];
-        UtilityFunctions::print("Entity0 aabb_min= (", d.aabb_min[0], ",", d.aabb_min[1], ",", d.aabb_min[2], ") aabb_max= (", d.aabb_max[0], ",", d.aabb_max[1], ",", d.aabb_max[2], ") grid= (", d.grid_size[0], ",", d.grid_size[1], ",", d.grid_size[2], ") bricks= (", d.brick_grid_size[0], ",", d.brick_grid_size[1], ",", d.brick_grid_size[2], ") scale= ", d.scale, ", brick_offset= ", (int)d.brick_offset, ", voxel_offset= ", (int)d.voxel_offset, ", brick_count= ", (int)d.brick_count);
-        UtilityFunctions::print("DEBUG: Uploading entity_count=", upload_count);
-    }
 }
 
 // ---------------- Projectile API ----------------

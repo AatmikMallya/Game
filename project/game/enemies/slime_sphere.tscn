@@ -1,0 +1,19 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/enemies/slime_sphere.gd" id="1"]
+[ext_resource type="Script" path="res://game/player/components/health_component.gd" id="2"]
+
+[sub_resource type="SphereShape3D" id="1_sphere"]
+radius = 0.7
+
+[node name="Slime" type="CharacterBody3D" groups=["enemy"]]
+script = ExtResource("1")
+base_radius = 0.7
+extra_spheres = Array[Vector3]([Vector3(0, 0, 0), Vector3(0.4, 0.15, 0), Vector3(-0.4, 0.15, 0)])
+extra_radii = Array[float]([0.7, 0.45, 0.45])
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("1_sphere")
+
+[node name="Health" type="Node" parent="."]
+script = ExtResource("2")
