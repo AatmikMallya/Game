@@ -23,6 +23,14 @@ var input_active: bool = false
 func _ready():
 	add_to_group("player")
 	set_mouse(true)
+	# Ensure gravity/walking by default (not flying)
+	is_flying = false
+	# Improve ground adherence to avoid tunneling on fast falls
+	floor_snap_length = 0.6
+
+	# Snap to voxel terrain top at current XZ
+	await get_tree().process_frame
+	_snap_to_voxel_ground()
 
 	# Listen to own death
 	if health_component:
@@ -109,6 +117,21 @@ func _physics_process(delta: float) -> void:
 	else:
 		_process_walking(delta)
 
+	# Extra safety: voxel-ground catch to prevent tunneling at high fall speeds
+	if not is_flying and not is_on_floor() and velocity.y < 0.0:
+		var vw: VoxelWorld = get_tree().get_first_node_in_group("voxel_world") as VoxelWorld
+		if vw != null:
+			var max_fall_step: float = absf(velocity.y) * delta + 0.5
+			var origin: Vector3 = global_position
+			var hit: Vector4 = vw.raycast_voxels(origin, Vector3.DOWN, 0.0, max(1.0, max_fall_step))
+			if hit.w >= 0.0:
+				var scale: float = vw.get_scale()
+				var world_hit: Vector3 = Vector3(hit.x, hit.y, hit.z) * scale
+				# Only snap if below our feet within step range
+				if origin.y >= world_hit.y and (origin.y - world_hit.y) <= max_fall_step:
+					global_position.y = world_hit.y + 0.6
+					velocity.y = 0.0
+
 	move_and_slide()
 
 func _on_player_died():
@@ -129,6 +152,23 @@ func _respawn():
 
 	# Reset position (find spawn point or use current position)
 	# For now just reset health
+
+func _snap_to_voxel_ground() -> void:
+	var vw: VoxelWorld = get_tree().get_first_node_in_group("voxel_world") as VoxelWorld
+	if vw == null:
+		return
+	# Cast from high above straight down to find first solid voxel
+	var pos: Vector3 = global_position
+	var start_y: float = 10000.0
+	var origin: Vector3 = Vector3(pos.x, start_y, pos.z)
+	var dir: Vector3 = Vector3.DOWN
+	var far_dist: float = start_y + 100.0
+	var hit: Vector4 = vw.raycast_voxels(origin, dir, 0.0, far_dist)
+	if hit.w >= 0.0:
+		var scale: float = vw.get_scale()
+		var world_hit: Vector3 = Vector3(hit.x, hit.y, hit.z) * scale
+		# Place slightly above to avoid clipping
+		global_position = Vector3(pos.x, world_hit.y + 0.6, pos.z)
 
 func _debug_heal():
 	if health_component:

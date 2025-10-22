@@ -14,11 +14,13 @@ class_name SlimeSphere
 
 var _vm_ids: Array[int] = []
 var _voxel_camera: Node = null
-var _voxel_world: Node = null
+var _voxel_world: VoxelWorld = null
 var _t: float = 0.0
 
 func _ready() -> void:
     add_to_group("enemy")
+    # Improve ground adherence to avoid tunneling
+    floor_snap_length = max(0.2, base_radius * 0.6)
 
     # Attach or locate health component
     if health == null:
@@ -32,7 +34,7 @@ func _ready() -> void:
 
     # Find VoxelCamera and VoxelWorld
     _voxel_camera = get_tree().get_first_node_in_group("voxel_camera")
-    _voxel_world = get_tree().get_first_node_in_group("voxel_world")
+    _voxel_world = get_tree().get_first_node_in_group("voxel_world") as VoxelWorld
 
     # Ensure arrays have at least one sphere
     if extra_spheres.is_empty():
@@ -43,7 +45,10 @@ func _ready() -> void:
             if extra_radii[i] <= 0.0:
                 extra_radii[i] = base_radius
 
-    # Defer registration by one frame to allow VoxelCamera to initialize
+    # Snap to terrain before registering spheres
+    await get_tree().process_frame
+    _snap_to_voxel_ground()
+    # Defer registration by a couple of frames to allow VoxelCamera to initialize
     _defer_register()
 
     set_physics_process(true)
@@ -83,10 +88,43 @@ func _process(delta: float) -> void:
     _check_projectile_hits()
 
 func _physics_process(_delta: float) -> void:
-    # Placeholder idle bobbing; hook up AI later
-    var o: Vector3 = global_position
-    o.y += 0.0
-    global_position = o
+    # Apply gravity and slide on terrain
+    if not is_on_floor():
+        velocity += get_gravity() * _delta
+    else:
+        # Dampen residual vertical velocity when grounded
+        if absf(velocity.y) < 0.01:
+            velocity.y = 0.0
+
+    # Extra safety: voxel-ground catch to prevent tunneling
+    if not is_on_floor() and velocity.y < 0.0 and _voxel_world != null:
+        var max_step: float = absf(velocity.y) * _delta + 0.5
+        var origin: Vector3 = global_position
+        var hit: Vector4 = _voxel_world.raycast_voxels(origin, Vector3.DOWN, 0.0, max(1.0, max_step))
+        if hit.w >= 0.0:
+            var scale: float = _voxel_world.get_scale()
+            var world_hit: Vector3 = Vector3(hit.x, hit.y, hit.z) * scale
+            if origin.y >= world_hit.y and (origin.y - world_hit.y) <= max_step:
+                global_position.y = world_hit.y + base_radius + 0.1
+                velocity.y = 0.0
+
+    move_and_slide()
+
+func _snap_to_voxel_ground() -> void:
+    if _voxel_world == null:
+        _voxel_world = get_tree().get_first_node_in_group("voxel_world") as VoxelWorld
+    if _voxel_world == null:
+        return
+    var pos: Vector3 = global_position
+    var start_y: float = 10000.0
+    var origin: Vector3 = Vector3(pos.x, start_y, pos.z)
+    var dir: Vector3 = Vector3.DOWN
+    var far_dist: float = start_y + 100.0
+    var hit: Vector4 = _voxel_world.raycast_voxels(origin, dir, 0.0, far_dist)
+    if hit.w >= 0.0:
+        var scale: float = _voxel_world.get_scale()
+        var world_hit: Vector3 = Vector3(hit.x, hit.y, hit.z) * scale
+        global_position = Vector3(pos.x, world_hit.y + base_radius + 0.1, pos.z)
 
 func _check_projectile_hits() -> void:
     # Poll nearby projectiles and apply damage on overlap or explosion radius.

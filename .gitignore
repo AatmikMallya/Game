@@ -1,3 +1,27 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# Build artifacts
+*.o
+*.os
+*.a
+*.so
+*.dylib
+*.dll
+*.lib
+*.exp
+*.pdb
+*.ilk
+
+# SCons
+.sconsign.dblite
+.sconf_temp/
+.sconsign*.dblite
+
+# Build directories
+build/
+bin/
+
+# macOS
+.DS_Store
