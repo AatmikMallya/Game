@@ -119,18 +119,48 @@ void VoxelWorldCollider::onDataFetched(const PackedByteArray &data)
             {
                 Vector3i ipos(x, y, z);
                 Vector3 pos = scale * Vector3(x, y, z) + collider_offset;
-                bool value = is_voxel_air(ipos);
-                if (x > 0 && (value ^ is_voxel_air(Vector3i(x - 1, y, z))))
+                bool is_solid = is_voxel_air(ipos);
+
+                // Internal faces (compare against negative neighbor)
+                if (x > 0 && (is_solid ^ is_voxel_air(Vector3i(x - 1, y, z))))
                 {
-                    addQuad(pos, 0, value);
+                    addQuad(pos, 0, is_solid);
                 }
-                if (y > 0 && (value ^ is_voxel_air(Vector3i(x, y - 1, z))))
+                if (y > 0 && (is_solid ^ is_voxel_air(Vector3i(x, y - 1, z))))
                 {
-                    addQuad(pos, 1, value);
+                    addQuad(pos, 1, is_solid);
                 }
-                if (z > 0 && (value ^ is_voxel_air(Vector3i(x, y, z - 1))))
+                if (z > 0 && (is_solid ^ is_voxel_air(Vector3i(x, y, z - 1))))
                 {
-                    addQuad(pos, 2, value);
+                    addQuad(pos, 2, is_solid);
+                }
+
+                // Boundary faces at the min edges (outside is air)
+                if (x == 0 && is_solid)
+                {
+                    addQuad(pos, 0, true);
+                }
+                if (y == 0 && is_solid)
+                {
+                    addQuad(pos, 1, true);
+                }
+                if (z == 0 && is_solid)
+                {
+                    addQuad(pos, 2, true);
+                }
+
+                // Boundary faces at the max edges (outside is air)
+                if (x + 1 == (size_t)_collider_size.x && is_solid)
+                {
+                    addQuad(pos + Vector3(scale, 0, 0), 0, false);
+                }
+                if (y + 1 == (size_t)_collider_size.y && is_solid)
+                {
+                    addQuad(pos + Vector3(0, scale, 0), 1, false);
+                }
+                if (z + 1 == (size_t)_collider_size.z && is_solid)
+                {
+                    addQuad(pos + Vector3(0, 0, scale), 2, false);
                 }
             }
         }

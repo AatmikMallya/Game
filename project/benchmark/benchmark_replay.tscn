@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://demo/world_editor.gd" id="4_editor"]
 [ext_resource type="Script" path="res://demo/auxiliary/fps_meter.gd" id="5_fps"]
 [ext_resource type="Script" path="res://demo/auxiliary/inventory/inventory.gd" id="6_inventory"]
+[ext_resource type="PackedScene" path="res://game/enemies/slime_sphere.tscn" id="7_slime"]
 
 [sub_resource type="VoxelWorldShaderGenerator" id="VoxelWorldShaderGenerator_benchmark"]
 shader_path = "uid://bgkyi6q4w4k64"
@@ -219,6 +220,9 @@ offset_right = 40.0
 offset_bottom = 23.0
 script = ExtResource("5_fps")
 reference_node = NodePath("../../..")
+
+[node name="Slime" parent="." instance=ExtResource("7_slime")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 68, 139, 68)
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_benchmark")
