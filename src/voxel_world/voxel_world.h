@@ -7,6 +7,7 @@
 #include <godot_cpp/classes/rendering_device.hpp>
 #include <godot_cpp/classes/directional_light3d.hpp>
 #include <godot_cpp/classes/time.hpp>
+#include <godot_cpp/core/object_id.hpp>
 
 #include "voxel_world/voxel_properties.h"
 #include "voxel_world/cellular_automata/voxel_world_update_pass.h"
@@ -38,11 +39,14 @@ private:
     VoxelWorldProperties _voxel_properties;
     RenderingDevice* _rd;
     Node3D* player_node = nullptr;
+    Node3D* aux_node = nullptr;
+    ObjectID aux_node_id = ObjectID();
 
     Ref<VoxelWorldGenerator> generator;
     VoxelWorldUpdatePass* _update_pass = nullptr;
     VoxelEditPass* _edit_pass = nullptr;
     VoxelWorldCollider* _voxel_world_collider = nullptr;
+    VoxelWorldCollider* _voxel_world_collider_aux = nullptr;
 
     DirectionalLight3D* _sun_light = nullptr;
     Color ground_color = Color(0.5, 0.3, 0.15, 1.0);
@@ -61,6 +65,13 @@ private:
     Vector3i get_voxel_world_position(const Vector3 &position) const {
         return Vector3i(std::floor(position.x / scale), std::floor(position.y / scale), std::floor(position.z / scale));
     }
+
+    // Throttle collider updates by snapping the requested center to a voxel grid
+    // and only updating when the snapped center changes.
+    Vector3i _last_collider_voxel_pos = Vector3i(0, 0, 0);
+    bool _has_last_collider_pos = false;
+    Vector3i _last_collider_voxel_pos_aux = Vector3i(0, 0, 0);
+    bool _has_last_collider_pos_aux = false;
 
 public:
     VoxelWorld();
@@ -86,9 +97,13 @@ public:
 
     void set_player_node(Node3D* node) { player_node = node; }
     Node3D* get_player_node() const { return player_node; }
+    void set_aux_node(Node3D* node) { aux_node = node; aux_node_id = node ? ObjectID(node->get_instance_id()) : ObjectID(); }
+    Node3D* get_aux_node() const { return aux_node; }
 
     void set_voxel_world_collider(VoxelWorldCollider* collider) {_voxel_world_collider = collider;}
     VoxelWorldCollider* get_voxel_world_collider() const { return _voxel_world_collider; }
+    void set_voxel_world_collider_aux(VoxelWorldCollider* collider) { _voxel_world_collider_aux = collider; }
+    VoxelWorldCollider* get_voxel_world_collider_aux() const { return _voxel_world_collider_aux; }
 
     void edit_world(const Vector3 &camera_origin, const Vector3 &camera_direction, const float radius, const float range, const int value);
     void edit_sphere_at(const Vector3 &position, const float radius, const int value);

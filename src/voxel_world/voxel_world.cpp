@@ -12,6 +12,8 @@ VoxelWorld::VoxelWorld()
     brick_map_size = Vector3i(16, 16, 16);
     scale = 0.125f;
     _initialized = false;
+    _has_last_collider_pos = false;
+    _has_last_collider_pos_aux = false;
 }
 
 VoxelWorld::~VoxelWorld()
@@ -66,11 +68,19 @@ void VoxelWorld::_bind_methods()
     ClassDB::bind_method(D_METHOD("get_voxel_world_collider"), &VoxelWorld::get_voxel_world_collider);
     ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "voxel_world_collider", PROPERTY_HINT_NODE_TYPE, "VoxelWorldCollider"),
                  "set_voxel_world_collider", "get_voxel_world_collider");
+    ClassDB::bind_method(D_METHOD("set_voxel_world_collider_aux", "collider"), &VoxelWorld::set_voxel_world_collider_aux);
+    ClassDB::bind_method(D_METHOD("get_voxel_world_collider_aux"), &VoxelWorld::get_voxel_world_collider_aux);
+    ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "voxel_world_collider_aux", PROPERTY_HINT_NODE_TYPE, "VoxelWorldCollider"),
+                 "set_voxel_world_collider_aux", "get_voxel_world_collider_aux");
 
     ClassDB::bind_method(D_METHOD("get_player_node"), &VoxelWorld::get_player_node);
     ClassDB::bind_method(D_METHOD("set_player_node", "player_node"), &VoxelWorld::set_player_node);
     ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "player_node", PROPERTY_HINT_NODE_TYPE, "Node3D"), "set_player_node",
                  "get_player_node");
+    ClassDB::bind_method(D_METHOD("get_aux_node"), &VoxelWorld::get_aux_node);
+    ClassDB::bind_method(D_METHOD("set_aux_node", "aux_node"), &VoxelWorld::set_aux_node);
+    ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "aux_node", PROPERTY_HINT_NODE_TYPE, "Node3D"), "set_aux_node",
+                 "get_aux_node");
 
     ClassDB::bind_method(D_METHOD("get_sun_light"), &VoxelWorld::get_sun_light);
     ClassDB::bind_method(D_METHOD("set_sun_light", "sun_light"), &VoxelWorld::set_sun_light);
@@ -186,10 +196,14 @@ void VoxelWorld::init()
     // Create the edit pass.
     _edit_pass = new VoxelEditPass("res://addons/voxel_playground/src/shaders/voxel_edit/sphere_edit.glsl", _rd, _voxel_world_rids, size);
 
-    // if collider set, initialize it
+    // if colliders set, initialize them
     if (_voxel_world_collider != nullptr)
     {
         _voxel_world_collider->init(_rd, _voxel_world_rids, scale);
+    }
+    if (_voxel_world_collider_aux != nullptr)
+    {
+        _voxel_world_collider_aux->init(_rd, _voxel_world_rids, scale);
     }
     
     _initialized = true;
@@ -224,12 +238,68 @@ void VoxelWorld::update(float delta)
         _time_simulation_cleanup_us = 0;
     }
 
+    // Update primary collider at player
     if (_voxel_world_collider != nullptr && player_node != nullptr)
     {
-        uint64_t collision_start = Time::get_singleton()->get_ticks_usec();
-        _voxel_world_collider->update(get_voxel_world_position(player_node->get_global_position()));
-        uint64_t collision_end = Time::get_singleton()->get_ticks_usec();
-        _time_collision_us = collision_end - collision_start;
+        // Snap collider update center to reduce remeshing churn when moving/falling.
+        static const int SNAP_VOX = 4; // 4 voxels; with scale=0.25 this equals 1m
+        Vector3 player_pos = player_node->get_global_position();
+        Vector3i pvox = get_voxel_world_position(player_pos);
+
+        auto snap_comp = [](int v) {
+            // floor-like snapping that behaves for negative coordinates
+            int q = v / SNAP_VOX;
+            int r = v % SNAP_VOX;
+            if (r < 0) {
+                q -= 1;
+            }
+            return q * SNAP_VOX;
+        };
+
+        Vector3i snapped(snap_comp(pvox.x), snap_comp(pvox.y), snap_comp(pvox.z));
+
+        if (!_has_last_collider_pos || snapped != _last_collider_voxel_pos)
+        {
+            uint64_t collision_start = Time::get_singleton()->get_ticks_usec();
+            _voxel_world_collider->update(snapped);
+            uint64_t collision_end = Time::get_singleton()->get_ticks_usec();
+            _time_collision_us = collision_end - collision_start;
+
+            _last_collider_voxel_pos = snapped;
+            _has_last_collider_pos = true;
+        }
+    }
+    // Update auxiliary collider at aux_node (e.g., an enemy like slime)
+    if (_voxel_world_collider_aux != nullptr && (aux_node_id != ObjectID()))
+    {
+        static const int SNAP_VOX = 4;
+        // Resolve aux node safely via ObjectDB each frame in case it was freed.
+        Object *aux_obj = ObjectDB::get_instance((uint64_t)aux_node_id);
+        Node3D *aux = Object::cast_to<Node3D>(aux_obj);
+        if (aux == nullptr) {
+            aux_node = nullptr;
+            aux_node_id = ObjectID();
+        } else {
+            Vector3 aux_pos = aux->get_global_position();
+        Vector3i avox = get_voxel_world_position(aux_pos);
+
+        auto snap_comp2 = [](int v) {
+            int q = v / SNAP_VOX;
+            int r = v % SNAP_VOX;
+            if (r < 0) {
+                q -= 1;
+            }
+            return q * SNAP_VOX;
+        };
+        Vector3i snapped2(snap_comp2(avox.x), snap_comp2(avox.y), snap_comp2(avox.z));
+
+            if (!_has_last_collider_pos_aux || snapped2 != _last_collider_voxel_pos_aux)
+            {
+                _voxel_world_collider_aux->update(snapped2);
+                _last_collider_voxel_pos_aux = snapped2;
+                _has_last_collider_pos_aux = true;
+            }
+        }
     }
     else
     {
