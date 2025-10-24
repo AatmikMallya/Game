@@ -30,6 +30,11 @@ void VoxelCamera::_bind_methods()
     ClassDB::bind_method(D_METHOD("register_projectile", "position", "radius"), &VoxelCamera::register_projectile);
     ClassDB::bind_method(D_METHOD("update_projectile", "id", "position", "radius"), &VoxelCamera::update_projectile);
     ClassDB::bind_method(D_METHOD("remove_projectile", "id"), &VoxelCamera::remove_projectile);
+
+    // Entity API
+    ClassDB::bind_method(D_METHOD("register_entity", "transform", "aabb_size", "scale"), &VoxelCamera::register_entity);
+    ClassDB::bind_method(D_METHOD("update_entity", "id", "transform"), &VoxelCamera::update_entity);
+    ClassDB::bind_method(D_METHOD("remove_entity", "id"), &VoxelCamera::remove_entity);
 }
 
 void VoxelCamera::_notification(int p_what)
@@ -141,7 +146,7 @@ void VoxelCamera::init()
     projection_matrix = Projection::create_perspective(fov, static_cast<float>(resolution.width) / resolution.height, near, far, false);
 
     // setup compute shader
-    cs = new ComputeShader("res://addons/voxel_playground/src/shaders/voxel_renderer.glsl", _rd, {"#define TESTe"});
+    cs = new ComputeShader("res://addons/voxel_playground/src/shaders/voxel_renderer_new.glsl", _rd, {"#define TESTe"});
 
     //--------- Voxel BUFFERS ---------    
     voxel_world->get_voxel_world_rids().add_voxel_buffers(cs);    
@@ -187,6 +192,40 @@ void VoxelCamera::init()
         spheres.resize(sizeof(float) * 4 * MAX_PROJECTILES);
         spheres.fill(0);
         projectile_spheres_rid = cs->create_storage_buffer_uniform(spheres, 5, 1);
+    }
+
+    //--------- ENTITY BUFFERS ---------
+    {
+        // Initialize CPU-side cache
+        _entities.resize(MAX_ENTITIES);
+        for (int i = 0; i < MAX_ENTITIES; ++i) {
+            _entities.write[i].active = false;
+            // Zero out descriptor
+            EntityDescriptor &desc = _entities.write[i].descriptor;
+            memset(&desc, 0, sizeof(EntityDescriptor));
+        }
+        _entity_count.entity_count = 0;
+
+        // GPU buffer: entity count
+        entity_count_rid = cs->create_storage_buffer_uniform(_entity_count.to_packed_byte_array(), 6, 1);
+
+        // GPU buffer: entity bricks (empty for now, will populate when entities have voxel data)
+        PackedByteArray entity_bricks_data;
+        entity_bricks_data.resize(1024); // Dummy size
+        entity_bricks_data.fill(0);
+        entity_bricks_rid = cs->create_storage_buffer_uniform(entity_bricks_data, 7, 1);
+
+        // GPU buffer: entity voxels (empty for now)
+        PackedByteArray entity_voxels_data;
+        entity_voxels_data.resize(4096); // Dummy size
+        entity_voxels_data.fill(0);
+        entity_voxels_rid = cs->create_storage_buffer_uniform(entity_voxels_data, 8, 1);
+
+        // GPU buffer: entity descriptors array
+        PackedByteArray entity_descriptors_data;
+        entity_descriptors_data.resize(sizeof(EntityDescriptor) * MAX_ENTITIES);
+        entity_descriptors_data.fill(0);
+        entity_descriptors_rid = cs->create_storage_buffer_uniform(entity_descriptors_data, 9, 1);
     }
 
     Ref<RDTextureView> output_texture_view = memnew(RDTextureView);
@@ -268,6 +307,41 @@ void VoxelCamera::render()
         cs->update_storage_buffer_uniform(projectile_spheres_rid, spheres);
     }
 
+    // Update entity buffers
+    {
+        // Count active entities and pack descriptors
+        int count = 0;
+        PackedByteArray descriptors_data;
+        descriptors_data.resize(sizeof(EntityDescriptor) * MAX_ENTITIES);
+        uint8_t *ptr = descriptors_data.ptrw();
+
+        for (int i = 0; i < MAX_ENTITIES; ++i) {
+            const EntityEntry &e = _entities[i];
+            if (e.active) {
+                std::memcpy(ptr + i * sizeof(EntityDescriptor), &e.descriptor, sizeof(EntityDescriptor));
+                count++;
+            } else {
+                // Zero out inactive slots
+                memset(ptr + i * sizeof(EntityDescriptor), 0, sizeof(EntityDescriptor));
+            }
+        }
+        _entity_count.entity_count = count;
+
+        // DEBUG: Print entity count every 60 frames
+        static int debug_frame = 0;
+        if (++debug_frame % 60 == 0 && count > 0) {
+            UtilityFunctions::print("VoxelCamera render: entity_count=", count);
+            for (int i = 0; i < MAX_ENTITIES; ++i) {
+                if (_entities[i].active) {
+                    UtilityFunctions::print("  Entity ", i, " enabled=", _entities[i].descriptor.enabled);
+                }
+            }
+        }
+
+        cs->update_storage_buffer_uniform(entity_count_rid, _entity_count.to_packed_byte_array());
+        cs->update_storage_buffer_uniform(entity_descriptors_rid, descriptors_data);
+    }
+
     // render
     uint64_t raymarching_start = Time::get_singleton()->get_ticks_usec();
     Vector2i Size = {render_parameters.width, render_parameters.height};
@@ -314,4 +388,68 @@ void VoxelCamera::remove_projectile(int id)
     if (id < 0 || id >= MAX_PROJECTILES) return;
     _projectiles.write[id].active = false;
     _projectiles.write[id].data = Vector4(0,0,0,0);
+}
+
+// ---------------- Entity API ----------------
+int VoxelCamera::register_entity(const Transform3D &transform, const Vector3 &aabb_size, float scale)
+{
+    for (int i = 0; i < MAX_ENTITIES; ++i) {
+        if (!_entities[i].active) {
+            _entities.write[i].active = true;
+            EntityDescriptor &desc = _entities.write[i].descriptor;
+
+            // Set transforms using proper transform_to_float utility
+            Utils::transform_to_float(desc.local_to_world, transform);
+            Transform3D inv_transform = transform.affine_inverse();
+            Utils::transform_to_float(desc.world_to_local, inv_transform);
+
+            // Set AABB
+            desc.aabb_min = Vector4(-aabb_size.x/2, -aabb_size.y/2, -aabb_size.z/2, 0);
+            desc.aabb_max = Vector4(aabb_size.x/2, aabb_size.y/2, aabb_size.z/2, 0);
+
+            // For now, set dummy grid size (will populate with real voxel data later)
+            desc.grid_size = Vector4(16, 16, 16, 0);
+            desc.brick_grid_size = Vector4(2, 2, 2, 0);
+            desc.scale = scale;
+            desc.brick_offset = 0;
+            desc.voxel_offset = 0;
+            desc.brick_count = 0;
+            desc.enabled = 1;
+            desc.health = 100.0f;
+            desc._pad0 = desc._pad1 = desc._pad2 = 0.0f;
+
+            UtilityFunctions::print("VoxelCamera: Registered entity ", i,
+                " at pos ", transform.origin,
+                " with AABB min ", desc.aabb_min, " max ", desc.aabb_max,
+                " enabled=", desc.enabled);
+
+            // DEBUG: Print first few matrix values to verify
+            UtilityFunctions::print("  local_to_world[0-3]: ", desc.local_to_world[0], ", ", desc.local_to_world[1], ", ", desc.local_to_world[2], ", ", desc.local_to_world[3]);
+            UtilityFunctions::print("  world_to_local[0-3]: ", desc.world_to_local[0], ", ", desc.world_to_local[1], ", ", desc.world_to_local[2], ", ", desc.world_to_local[3]);
+
+            return i;
+        }
+    }
+    UtilityFunctions::push_warning("VoxelCamera: Max entities reached, cannot register more.");
+    return -1;
+}
+
+void VoxelCamera::update_entity(int id, const Transform3D &transform)
+{
+    if (id < 0 || id >= MAX_ENTITIES) return;
+    if (!_entities[id].active) return;
+
+    EntityDescriptor &desc = _entities.write[id].descriptor;
+
+    // Update transforms using proper transform_to_float utility
+    Utils::transform_to_float(desc.local_to_world, transform);
+    Transform3D inv_transform = transform.affine_inverse();
+    Utils::transform_to_float(desc.world_to_local, inv_transform);
+}
+
+void VoxelCamera::remove_entity(int id)
+{
+    if (id < 0 || id >= MAX_ENTITIES) return;
+    _entities.write[id].active = false;
+    memset(&_entities.write[id].descriptor, 0, sizeof(EntityDescriptor));
 }

@@ -162,85 +162,49 @@ void main() {
 
         if (ent.enabled == 0u) continue;
 
-        // DEBUG: Skip AABB test entirely
-        hit_any_aabb = true;
+        // Extract entity world position from local_to_world matrix (column 3)
+        vec3 entity_world_pos = vec3(ent.local_to_world[3][0], ent.local_to_world[3][1], ent.local_to_world[3][2]);
 
-        // DEBUG: Just render AABB as solid color
-        if (eid == 0) {
-            entity_color = vec3(0.0, 1.0, 0.0);  // Green for entity 0
-        } else if (eid == 1) {
-            entity_color = vec3(1.0, 0.0, 0.0);  // Red for entity 1
-        } else {
-            entity_color = vec3(0.0, 0.0, 1.0);  // Blue for entity 2
+        // World-space AABB (no rotation support yet)
+        vec3 aabb_min = entity_world_pos + ent.aabb_min.xyz;
+        vec3 aabb_max = entity_world_pos + ent.aabb_max.xyz;
+
+        // AABB ray intersection
+        const float eps = 1e-7;
+        vec3 safe_dir = ray_dir;
+        safe_dir.x = abs(safe_dir.x) < eps ? (safe_dir.x >= 0.0 ? eps : -eps) : safe_dir.x;
+        safe_dir.y = abs(safe_dir.y) < eps ? (safe_dir.y >= 0.0 ? eps : -eps) : safe_dir.y;
+        safe_dir.z = abs(safe_dir.z) < eps ? (safe_dir.z >= 0.0 ? eps : -eps) : safe_dir.z;
+
+        vec3 inv_dir = 1.0 / safe_dir;
+        vec3 t0 = (aabb_min - ray_origin) * inv_dir;
+        vec3 t1 = (aabb_max - ray_origin) * inv_dir;
+        vec3 tmin_vec = min(t0, t1);
+        vec3 tmax_vec = max(t0, t1);
+        float tmin = max(max(tmin_vec.x, tmin_vec.y), tmin_vec.z);
+        float tmax = min(min(tmax_vec.x, tmax_vec.y), tmax_vec.z);
+
+        // Check for valid intersection
+        if (tmin <= tmax && tmax > 0.0) {
+            // Hit! Render colored box
+            entity_color = vec3(0.0, 1.0, 0.0);  // Green
+            t_entity = max(tmin, camera.near);
+            hit_entity = true;
+            n_entity = vec3(0, 1, 0);  // Simple up normal
+            break;
         }
-        t_entity = 0.0;
-        hit_entity = true;
-        break;
-
-        // Sample a few points along the ray through the AABB
-        float t_start = max(tmin, 0.0);
-        float t_end = tmax;
-        float step = ent.scale * 0.8;  // Step by ~1 voxel
-
-        for (float t_sample = t_start; t_sample < t_end && t_sample < t_entity; t_sample += step) {
-            vec3 world_hit = ray_origin + ray_dir * t_sample;
-            vec4 local_4 = ent.world_to_local * vec4(world_hit, 1.0);
-            vec3 local_hit = local_4.xyz / local_4.w;
-            ivec3 voxel_pos = ivec3(floor(local_hit / ent.scale));
-
-            // Bounds check
-            ivec3 grid_sz = ivec3(ent.grid_size.xyz);
-            if (voxel_pos.x < 0 || voxel_pos.x >= grid_sz.x ||
-                voxel_pos.y < 0 || voxel_pos.y >= grid_sz.y ||
-                voxel_pos.z < 0 || voxel_pos.z >= grid_sz.z) {
-                continue;
-            }
-
-            // Get brick
-            ivec3 brick_coord = voxel_pos / 8;
-            ivec3 bgs = ivec3(ent.brick_grid_size.xyz);
-            uint brick_idx = uint(brick_coord.x + brick_coord.y * bgs.x + brick_coord.z * bgs.x * bgs.y);
-            uint brick_buffer_idx = ent.brick_offset + brick_idx;
-
-            Brick brick = entityBricks[brick_buffer_idx];
-            if (brick.occupancy_count == 0u) continue;
-
-            // Get voxel (Morton order)
-            ivec3 local_vox = voxel_pos % 8;
-            uint morton = 0u;
-            morton |= ((uint(local_vox.x) >> 0) & 1u) << 0;
-            morton |= ((uint(local_vox.y) >> 0) & 1u) << 1;
-            morton |= ((uint(local_vox.z) >> 0) & 1u) << 2;
-            morton |= ((uint(local_vox.x) >> 1) & 1u) << 3;
-            morton |= ((uint(local_vox.y) >> 1) & 1u) << 4;
-            morton |= ((uint(local_vox.z) >> 1) & 1u) << 5;
-            morton |= ((uint(local_vox.x) >> 2) & 1u) << 6;
-            morton |= ((uint(local_vox.y) >> 2) & 1u) << 7;
-            morton |= ((uint(local_vox.z) >> 2) & 1u) << 8;
-
-            uint voxel_idx = ent.voxel_offset + brick.voxel_data_pointer + morton;
-            Voxel ev = entityVoxels[voxel_idx];
-
-            // Check if not air
-            if (((ev.data >> 24) & 0xFFu) != 0u) {
-                t_entity = t_sample;
-                hit_entity = true;
-                // DEBUG: Use hardcoded bright green
-                entity_color = vec3(0.2, 1.0, 0.4);
-                n_entity = -ray_dir;  // Simple normal for now
-                break;
-            }
-        }
-
-        if (hit_entity) break;
     }
 
     bool hit_world = voxelTraceWorld(ray_origin, ray_dir, vec2(camera.near, camera.far), voxel, t, grid_position, normal, step_count);
 
-    // DEBUG: Force entity rendering if hit_entity is true
-    if (hit_entity) {
-        color = entity_color;  // Show entity regardless of depth
-    } else if (hit_sphere && (!hit_world || t_sphere < t)) {
+    // Proper depth-sorted compositing
+    // Entity is closest if: entity hit AND (no sphere hit OR entity closer than sphere) AND (no world hit OR entity closer than world)
+    bool entity_closest = hit_entity && (!hit_sphere || t_entity < t_sphere) && (!hit_world || (hit_world && t_entity < t));
+    bool sphere_closest = !entity_closest && hit_sphere && (!hit_world || (hit_world && t_sphere < t));
+
+    if (entity_closest) {
+        color = entity_color;
+    } else if (sphere_closest) {
         // Shade projectile as emissive fireball
         vec3 hitPos = ray_origin + t_sphere * ray_dir;
         vec3 baseColor = vec3(1.5, 0.5, 0.1); // bright orange emissive
@@ -283,8 +247,7 @@ void main() {
 
 
     float depth = 0.0f;
-    // DEBUG: Force magenta to test if shader changes are being picked up
-    color = vec3(1.0, 0.0, 1.0);
+
     imageStore(outputImage, pos, vec4(color, 1.0));
     imageStore(depthBuffer, pos, vec4(depth, 0.0, 0.0, 0.0));
 }

@@ -27,6 +27,7 @@ class VoxelCamera : public Node3D
   public:
 
     static constexpr int MAX_PROJECTILES = 64;
+    static constexpr int MAX_ENTITIES = 32;
 
     struct RenderParameters // match the struct on the gpu
     {
@@ -75,6 +76,44 @@ class VoxelCamera : public Node3D
         }
     };
 
+    struct EntityCount // gpu struct: current entity count
+    {
+        int entity_count;
+
+        PackedByteArray to_packed_byte_array()
+        {
+            PackedByteArray byte_array;
+            byte_array.resize(sizeof(EntityCount));
+            std::memcpy(byte_array.ptrw(), this, sizeof(EntityCount));
+            return byte_array;
+        }
+    };
+
+    struct EntityDescriptor // match GPU layout exactly
+    {
+        float local_to_world[16];
+        float world_to_local[16];
+        Vector4 aabb_min;
+        Vector4 aabb_max;
+        Vector4 grid_size;
+        Vector4 brick_grid_size;
+        float scale;
+        uint32_t brick_offset;
+        uint32_t voxel_offset;
+        uint32_t brick_count;
+        uint32_t enabled;
+        float health;
+        float _pad0, _pad1, _pad2;
+
+        PackedByteArray to_packed_byte_array()
+        {
+            PackedByteArray byte_array;
+            byte_array.resize(sizeof(EntityDescriptor));
+            std::memcpy(byte_array.ptrw(), this, sizeof(EntityDescriptor));
+            return byte_array;
+        }
+    };
+
   protected:
     static void _bind_methods();
 
@@ -104,6 +143,12 @@ class VoxelCamera : public Node3D
     void update_projectile(int id, const Vector3 &position, float radius);
     void remove_projectile(int id);
 
+    // ---------------- Entity (voxel-based) API ----------------
+    // Register a voxel entity. Returns an id to update/remove later.
+    int register_entity(const Transform3D &transform, const Vector3 &aabb_size, float scale);
+    void update_entity(int id, const Transform3D &transform);
+    void remove_entity(int id);
+
   private:
     void init();
     void update(double delta);
@@ -131,6 +176,10 @@ class VoxelCamera : public Node3D
     RID camera_parameters_rid;
     RID projectile_parameters_rid;
     RID projectile_spheres_rid;
+    RID entity_count_rid;
+    RID entity_bricks_rid;
+    RID entity_voxels_rid;
+    RID entity_descriptors_rid;
     RenderingDevice *_rd;
 
     // CPU-side projectile cache. Packed as vec4(x,y,z,radius) per element.
@@ -138,6 +187,11 @@ class VoxelCamera : public Node3D
     struct ProjectileEntry { Vector4 data; bool active; };
     Vector<ProjectileEntry> _projectiles; // fixed capacity MAX_PROJECTILES
     ProjectileParameters _projectile_params;
+
+    // CPU-side entity cache
+    struct EntityEntry { EntityDescriptor descriptor; bool active; };
+    Vector<EntityEntry> _entities; // fixed capacity MAX_ENTITIES
+    EntityCount _entity_count;
 
     // Performance profiling (microseconds)
     uint64_t _time_camera_update_us = 0;
